@@ -1,6 +1,6 @@
 [project]
 name = "gramax-docportal-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for Gramax documentation portal — search, read articles, browse catalogs"
 readme = "README.md"
 license = "MIT"
