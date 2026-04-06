@@ -29,7 +29,9 @@ Gramax Doc Portal API:
 - `GET /api/catalogs` — список каталогов
 - `GET /api/catalogs/{id}/navigation` — дерево навигации
 - `GET /api/catalogs/{id}/articles/{articleId}/html` — HTML статьи
-- `GET /api/search/searchCommand?query=...&catalogName=...` — поиск
+- `GET /api/search/searchCommand` — поиск
+  - Query params: `query`, `catalogName`, `type` (`"vector"`), `articlesLanguage`
+  - Body (JSON): `resourceFilter` (`"without"|"with"|"only"`), `propertyFilter` (рекурсивный фильтр с `eq`/`contains`/`isEmpty`/`and`/`or`)
 
 Auth: `Authorization: Bearer <token>` (получить через `GET /api/user/token`)
 

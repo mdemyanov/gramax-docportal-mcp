@@ -106,6 +106,40 @@ class TestFormatSearchResults:
         assert "**токен**" in result
         assert "Найдено: 1" in result
 
+    def test_recommended_and_properties(self):
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = [
+            {
+                "type": "article",
+                "isRecommended": True,
+                "title": [{"type": "text", "text": "NSD"}],
+                "url": "/docs/nsd",
+                "breadcrumbs": [],
+                "catalog": {"name": "docs", "title": "Docs"},
+                "items": [],
+                "properties": [
+                    {"name": "Продукт", "value": ["NSD"]},
+                    {"name": "Сегмент", "value": ["Enterprise"]},
+                ],
+            },
+            {
+                "type": "article",
+                "isRecommended": False,
+                "title": [{"type": "text", "text": "Other"}],
+                "url": "/docs/other",
+                "breadcrumbs": [],
+                "catalog": {"name": "docs", "title": "Docs"},
+                "items": [],
+                "properties": [],
+            },
+        ]
+        result = format_search_results(results, "https://docs.example.com")
+        assert "⭐ NSD" in result
+        assert "⭐ Other" not in result
+        assert "Продукт: NSD" in result
+        assert "Сегмент: Enterprise" in result
+
     def test_empty_results(self):
         from gramax_docportal_mcp.formatters import format_search_results
 

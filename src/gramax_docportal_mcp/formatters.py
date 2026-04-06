@@ -93,10 +93,18 @@ def format_search_results(results: list[dict], base_url: str) -> str:
         path_parts = [catalog.get("title", "")] + [b["title"] for b in breadcrumbs]
         path = " > ".join(p for p in path_parts if p)
 
-        lines.append(f"## {i}. {title}")
+        recommended = "⭐ " if result.get("isRecommended") else ""
+        lines.append(f"## {i}. {recommended}{title}")
         if path:
             lines.append(f"📂 {path}")
         lines.append(f"🔗 {url}")
+
+        properties = result.get("properties", [])
+        if properties:
+            props_str = " | ".join(
+                f"{p['name']}: {', '.join(p['value'])}" for p in properties
+            )
+            lines.append(f"🏷️ {props_str}")
         lines.append("")
 
         snippet = _render_snippet(result.get("items", []))

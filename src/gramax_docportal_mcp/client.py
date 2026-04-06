@@ -72,10 +72,32 @@ class GramaxClient:
         query: str,
         *,
         catalog_name: str | None = None,
+        search_type: str | None = None,
+        language: str | None = None,
+        resource_filter: str | None = None,
+        property_filter: dict | None = None,
     ) -> list[dict]:
         params: dict = {"query": query}
         if catalog_name is not None:
             params["catalogName"] = catalog_name
-        response = await self._client.get("/api/search/searchCommand", params=params)
+        if search_type is not None:
+            params["type"] = search_type
+        if language is not None:
+            params["articlesLanguage"] = language
+
+        body: dict | None = None
+        if resource_filter is not None or property_filter is not None:
+            body = {}
+            if resource_filter is not None:
+                body["resourceFilter"] = resource_filter
+            if property_filter is not None:
+                body["propertyFilter"] = property_filter
+
+        response = await self._client.request(
+            "GET",
+            "/api/search/searchCommand",
+            params=params,
+            json=body,
+        )
         self._check_response(response, f"поиск '{query}'")
         return response.json()

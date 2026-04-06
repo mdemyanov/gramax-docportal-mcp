@@ -96,6 +96,43 @@ async def test_search_all_catalogs(httpx_mock: HTTPXMock, base_url, api_token):
     assert "catalogName" not in str(request.url)
 
 
+async def test_search_with_filters(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(json=[])
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        await client.search(
+            "naumen",
+            catalog_name="docs",
+            search_type="vector",
+            language="ru",
+            resource_filter="without",
+            property_filter={"op": "eq", "key": "Продукт", "value": "NSD"},
+        )
+
+    request = httpx_mock.get_request()
+    url_str = str(request.url)
+    assert "type=vector" in url_str
+    assert "articlesLanguage=ru" in url_str
+    import json
+    body = json.loads(request.content)
+    assert body["resourceFilter"] == "without"
+    assert body["propertyFilter"]["op"] == "eq"
+
+
+async def test_search_no_body_without_filters(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(json=[])
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        await client.search("query")
+
+    request = httpx_mock.get_request()
+    assert request.content == b""
+
+
 async def test_error_401(httpx_mock: HTTPXMock, base_url, api_token):
     httpx_mock.add_response(status_code=401, text="Unauthorized")
 

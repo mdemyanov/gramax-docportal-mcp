@@ -68,16 +68,39 @@ async def gramax_get_navigation(catalog_id: str) -> str:
 async def gramax_search(
     query: str,
     catalog_name: str | None = None,
+    search_type: str | None = None,
+    language: str | None = None,
+    resource_filter: str | None = None,
+    property_filter: dict | None = None,
 ) -> str:
     """Поиск по статьям документации Gramax.
 
     Args:
-        query: Поисковый запрос
+        query: Поисковый запрос (авто-раскладка RU/EN и транслитерация)
         catalog_name: Имя каталога для поиска (без него — поиск по всем каталогам)
+        search_type: Тип поиска — "vector" для семантического, без значения — полнотекстовый
+        language: Язык статей: "ru", "en", "es", "zh", "fr", "de", "ja" и др.
+        resource_filter: Фильтр ресурсов: "without" — только статьи,
+            "only" — только файлы, "with" — всё (по умолчанию)
+        property_filter: Фильтр по свойствам статей. Примеры:
+            {"op": "eq", "key": "Продукт", "value": "NSD"}
+            {"op": "contains", "key": "Сегмент",
+             "list": ["Enterprise", "SMB"]}
+            {"op": "and", "filters": [
+             {"op": "eq", "key": "Тип контента", "value": "Кейс"},
+             {"op": "eq", "key": "Отрасль", "value": "Логистика"}
+            ]}
     """
     try:
         client = _get_client()
-        results = await client.search(query, catalog_name=catalog_name)
+        results = await client.search(
+            query,
+            catalog_name=catalog_name,
+            search_type=search_type,
+            language=language,
+            resource_filter=resource_filter,
+            property_filter=property_filter,
+        )
         return format_search_results(results, _base_url)
     except GramaxError as e:
         return str(e)
