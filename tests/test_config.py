@@ -7,7 +7,7 @@ def test_settings_loads_from_env(monkeypatch):
 
     from gramax_docportal_mcp.config import Settings
 
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.gramax_base_url == "https://docs.example.com"
     assert settings.gramax_api_token == "test-token-abc"
 
@@ -19,7 +19,7 @@ def test_settings_requires_base_url(monkeypatch):
     from gramax_docportal_mcp.config import Settings
 
     with pytest.raises(Exception):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_settings_requires_api_token(monkeypatch):
@@ -29,4 +29,4 @@ def test_settings_requires_api_token(monkeypatch):
     from gramax_docportal_mcp.config import Settings
 
     with pytest.raises(Exception):
-        Settings()
+        Settings(_env_file=None)
