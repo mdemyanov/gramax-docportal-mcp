@@ -23,6 +23,18 @@ class TestFormatCatalogsList:
         result = format_catalogs_list(data)
         assert "Каталогов не найдено" in result
 
+    def test_missing_keys_in_catalog(self):
+        from gramax_docportal_mcp.formatters import format_catalogs_list
+
+        data = {"data": [
+            {"id": "docs"},  # no title
+            {"title": "API Reference"},  # no id
+            {},  # no keys at all
+        ]}
+        result = format_catalogs_list(data)
+        assert "# Каталоги документации" in result
+        assert "Всего: 3" in result
+
 
 class TestFormatNavigation:
     def test_flat_tree(self):
@@ -64,6 +76,30 @@ class TestFormatNavigation:
         data = {"data": []}
         result = format_navigation("docs", data, "https://docs.example.com")
         assert "Навигация пуста" in result
+
+    def test_missing_keys_in_nav_items(self):
+        from gramax_docportal_mcp.formatters import format_navigation
+
+        data = {"data": [
+            {"title": "No ID Item"},  # no id
+            {"id": "no-title"},  # no title
+        ]}
+        result = format_navigation("docs", data, "https://docs.example.com")
+        assert "# Навигация: docs" in result
+        assert "No ID Item" in result
+
+    def test_deep_tree_truncated(self):
+        from gramax_docportal_mcp.formatters import MAX_NAV_DEPTH, format_navigation
+
+        node = {"id": f"level-{MAX_NAV_DEPTH + 1}", "title": f"Level {MAX_NAV_DEPTH + 1}"}
+        for i in range(MAX_NAV_DEPTH, 0, -1):
+            node = {"id": f"level-{i}", "title": f"Level {i}", "children": [node]}
+        data = {"data": [node]}
+
+        result = format_navigation("docs", data, "https://docs.example.com")
+        assert "Level 1" in result
+        assert f"Level {MAX_NAV_DEPTH}" in result
+        assert f"Level {MAX_NAV_DEPTH + 1}" not in result
 
 
 class TestFormatSearchResults:
@@ -189,3 +225,12 @@ class TestHtmlToMarkdown:
 
         assert html_to_markdown("") == ""
         assert html_to_markdown("   ") == ""
+
+    def test_collapses_multiple_blank_lines(self):
+        from gramax_docportal_mcp.formatters import html_to_markdown
+
+        html = "<p>A</p><br><br><br><br><br><p>B</p>"
+        result = html_to_markdown(html)
+        assert "\n\n\n" not in result
+        assert "A" in result
+        assert "B" in result

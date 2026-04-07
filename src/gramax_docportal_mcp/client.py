@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -49,15 +50,17 @@ class GramaxClient:
             raise GramaxNotFoundError(f"Ресурс не найден: {context}")
         response.raise_for_status()
 
-    async def list_catalogs(self) -> dict:
+    async def list_catalogs(self) -> dict[str, Any]:
         response = await self._client.get("/api/catalogs")
         self._check_response(response, "список каталогов")
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
-    async def get_navigation(self, catalog_id: str) -> dict:
+    async def get_navigation(self, catalog_id: str) -> dict[str, Any]:
         response = await self._client.get(f"/api/catalogs/{catalog_id}/navigation")
         self._check_response(response, f"каталог {catalog_id}")
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def get_article_html(self, catalog_id: str, article_id: str) -> str:
         encoded_id = quote(article_id, safe="")
@@ -75,9 +78,9 @@ class GramaxClient:
         search_type: str | None = None,
         language: str | None = None,
         resource_filter: str | None = None,
-        property_filter: dict | None = None,
-    ) -> list[dict]:
-        params: dict = {"query": query}
+        property_filter: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, str] = {"query": query}
         if catalog_name is not None:
             params["catalogName"] = catalog_name
         if search_type is not None:
@@ -85,7 +88,7 @@ class GramaxClient:
         if language is not None:
             params["articlesLanguage"] = language
 
-        body: dict | None = None
+        body: dict[str, Any] | None = None
         if resource_filter is not None or property_filter is not None:
             body = {}
             if resource_filter is not None:
@@ -100,4 +103,5 @@ class GramaxClient:
             json=body,
         )
         self._check_response(response, f"поиск '{query}'")
-        return response.json()
+        result: list[dict[str, Any]] = response.json()
+        return result

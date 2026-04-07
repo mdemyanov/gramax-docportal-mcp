@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from bs4 import BeautifulSoup
 from markdownify import markdownify
+
+MAX_NAV_DEPTH = 20
 
 
 def format_catalogs_list(data: dict) -> str:
@@ -21,7 +25,7 @@ def format_catalogs_list(data: dict) -> str:
     ]
 
     for cat in catalogs:
-        lines.append(f"| {cat['title']} | {cat['id']} |")
+        lines.append(f"| {cat.get('title', '—')} | {cat.get('id', '—')} |")
 
     lines.append("")
     lines.append(f"Всего: {len(catalogs)}")
@@ -31,11 +35,13 @@ def format_catalogs_list(data: dict) -> str:
 
 def _render_tree(items: list[dict], base_url: str, catalog_id: str, depth: int = 0) -> list[str]:
     """Recursively render navigation tree to markdown lines."""
+    if depth >= MAX_NAV_DEPTH:
+        return []
     lines: list[str] = []
     indent = "  " * depth
     for item in items:
-        url = f"{base_url}/{catalog_id}/{item['id']}"
-        lines.append(f"{indent}- [{item['title']}]({url})")
+        url = f"{base_url}/{catalog_id}/{item.get('id', '')}"
+        lines.append(f"{indent}- [{item.get('title', '—')}]({url})")
         children = item.get("children", [])
         if children:
             lines.extend(_render_tree(children, base_url, catalog_id, depth + 1))
@@ -90,7 +96,7 @@ def format_search_results(results: list[dict], base_url: str) -> str:
 
         breadcrumbs = result.get("breadcrumbs", [])
         catalog = result.get("catalog", {})
-        path_parts = [catalog.get("title", "")] + [b["title"] for b in breadcrumbs]
+        path_parts = [catalog.get("title", "")] + [b.get("title", "") for b in breadcrumbs]
         path = " > ".join(p for p in path_parts if p)
 
         recommended = "⭐ " if result.get("isRecommended") else ""
@@ -133,7 +139,6 @@ def html_to_markdown(html: str) -> str:
     )
 
     # Clean up excessive blank lines
-    while "\n\n\n" in md:
-        md = md.replace("\n\n\n", "\n\n")
+    md = re.sub(r"\n{3,}", "\n\n", md)
 
     return md.strip()
