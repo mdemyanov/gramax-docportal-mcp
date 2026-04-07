@@ -23,6 +23,18 @@ class TestFormatCatalogsList:
         result = format_catalogs_list(data)
         assert "Каталогов не найдено" in result
 
+    def test_missing_keys_in_catalog(self):
+        from gramax_docportal_mcp.formatters import format_catalogs_list
+
+        data = {"data": [
+            {"id": "docs"},  # no title
+            {"title": "API Reference"},  # no id
+            {},  # no keys at all
+        ]}
+        result = format_catalogs_list(data)
+        assert "# Каталоги документации" in result
+        assert "Всего: 3" in result
+
 
 class TestFormatNavigation:
     def test_flat_tree(self):
@@ -64,6 +76,17 @@ class TestFormatNavigation:
         data = {"data": []}
         result = format_navigation("docs", data, "https://docs.example.com")
         assert "Навигация пуста" in result
+
+    def test_missing_keys_in_nav_items(self):
+        from gramax_docportal_mcp.formatters import format_navigation
+
+        data = {"data": [
+            {"title": "No ID Item"},  # no id
+            {"id": "no-title"},  # no title
+        ]}
+        result = format_navigation("docs", data, "https://docs.example.com")
+        assert "# Навигация: docs" in result
+        assert "No ID Item" in result
 
 
 class TestFormatSearchResults:
