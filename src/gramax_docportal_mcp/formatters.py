@@ -5,6 +5,8 @@ from __future__ import annotations
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
+MAX_NAV_DEPTH = 20
+
 
 def format_catalogs_list(data: dict) -> str:
     """Format catalogs list to markdown table."""
@@ -31,6 +33,8 @@ def format_catalogs_list(data: dict) -> str:
 
 def _render_tree(items: list[dict], base_url: str, catalog_id: str, depth: int = 0) -> list[str]:
     """Recursively render navigation tree to markdown lines."""
+    if depth >= MAX_NAV_DEPTH:
+        return []
     lines: list[str] = []
     indent = "  " * depth
     for item in items:

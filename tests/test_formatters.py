@@ -88,6 +88,19 @@ class TestFormatNavigation:
         assert "# Навигация: docs" in result
         assert "No ID Item" in result
 
+    def test_deep_tree_truncated(self):
+        from gramax_docportal_mcp.formatters import format_navigation, MAX_NAV_DEPTH
+
+        node = {"id": f"level-{MAX_NAV_DEPTH + 1}", "title": f"Level {MAX_NAV_DEPTH + 1}"}
+        for i in range(MAX_NAV_DEPTH, 0, -1):
+            node = {"id": f"level-{i}", "title": f"Level {i}", "children": [node]}
+        data = {"data": [node]}
+
+        result = format_navigation("docs", data, "https://docs.example.com")
+        assert "Level 1" in result
+        assert f"Level {MAX_NAV_DEPTH}" in result
+        assert f"Level {MAX_NAV_DEPTH + 1}" not in result
+
 
 class TestFormatSearchResults:
     def test_basic_results(self):
