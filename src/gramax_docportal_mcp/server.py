@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from typing import Any
+
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
 
@@ -17,7 +20,7 @@ from gramax_docportal_mcp.formatters import (
 
 
 @lifespan
-async def app_lifespan(server):
+async def app_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     """Create GramaxClient on startup, close on shutdown."""
     settings = Settings()
     base_url = settings.gramax_base_url.rstrip("/")
@@ -72,7 +75,7 @@ async def gramax_search(
     search_type: str | None = None,
     language: str | None = None,
     resource_filter: str | None = None,
-    property_filter: dict | None = None,
+    property_filter: dict[str, Any] | None = None,
 ) -> str:
     """Поиск по статьям документации Gramax.
 
@@ -130,5 +133,5 @@ async def gramax_get_article(ctx: Context, catalog_id: str, article_id: str) -> 
         return str(e)
 
 
-def main():
+def main() -> None:
     mcp.run()
