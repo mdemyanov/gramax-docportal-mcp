@@ -350,9 +350,10 @@ wheels = [
 
 [[package]]
 name = "gramax-docportal-mcp"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "fastmcp" },
     { name = "httpx" },
     { name = "markdownify" },
@@ -369,6 +370,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.9" },
     { name = "fastmcp", specifier = ">=2.0.0" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "markdownify", specifier = ">=0.14.1" },
