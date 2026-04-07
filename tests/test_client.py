@@ -2,16 +2,6 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 
-@pytest.fixture
-def base_url():
-    return "https://docs.example.com"
-
-
-@pytest.fixture
-def api_token():
-    return "test-api-token-123"
-
-
 async def test_list_catalogs(httpx_mock: HTTPXMock, base_url, api_token):
     response_data = {"data": [{"id": "docs", "title": "Gramax Docs"}]}
     httpx_mock.add_response(json=response_data)
