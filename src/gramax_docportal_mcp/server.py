@@ -53,6 +53,8 @@ async def gramax_get_navigation(ctx: Context, catalog_id: str) -> str:
     Args:
         catalog_id: ID каталога (получить через gramax_list_catalogs)
     """
+    if not catalog_id or not catalog_id.strip():
+        return "Ошибка: catalog_id не может быть пустым."
     try:
         client = ctx.lifespan_context["client"]
         base_url = ctx.lifespan_context["base_url"]
@@ -90,6 +92,8 @@ async def gramax_search(
              {"op": "eq", "key": "Отрасль", "value": "Логистика"}
             ]}
     """
+    if not query or not query.strip():
+        return "Ошибка: поисковый запрос не может быть пустым."
     try:
         client = ctx.lifespan_context["client"]
         base_url = ctx.lifespan_context["base_url"]
@@ -114,6 +118,10 @@ async def gramax_get_article(ctx: Context, catalog_id: str, article_id: str) -> 
         catalog_id: ID каталога
         article_id: ID статьи (получить через gramax_get_navigation или gramax_search)
     """
+    if not catalog_id or not catalog_id.strip():
+        return "Ошибка: catalog_id не может быть пустым."
+    if not article_id or not article_id.strip():
+        return "Ошибка: article_id не может быть пустым."
     try:
         client = ctx.lifespan_context["client"]
         html = await client.get_article_html(catalog_id, article_id)
