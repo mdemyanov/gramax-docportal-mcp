@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
+from fastmcp.server.lifespan import lifespan
 
 from gramax_docportal_mcp.client import GramaxClient, GramaxError
 from gramax_docportal_mcp.config import Settings
@@ -14,35 +15,31 @@ from gramax_docportal_mcp.formatters import (
     html_to_markdown,
 )
 
+
+@lifespan
+async def app_lifespan(server):
+    """Create GramaxClient on startup, close on shutdown."""
+    settings = Settings()
+    base_url = settings.gramax_base_url.rstrip("/")
+    async with GramaxClient(base_url=base_url, api_token=settings.gramax_api_token) as client:
+        yield {"client": client, "base_url": base_url}
+
+
 mcp = FastMCP(
     "Gramax",
     instructions="Search and read documentation from Gramax Doc Portal",
+    lifespan=app_lifespan,
 )
-
-_client: GramaxClient | None = None
-_base_url: str = ""
-
-
-def _get_client() -> GramaxClient:
-    global _client, _base_url
-    if _client is None:
-        settings = Settings()
-        _base_url = settings.gramax_base_url.rstrip("/")
-        _client = GramaxClient(
-            base_url=_base_url,
-            api_token=settings.gramax_api_token,
-        )
-    return _client
 
 
 @mcp.tool()
-async def gramax_list_catalogs() -> str:
+async def gramax_list_catalogs(ctx: Context) -> str:
     """Получить список всех каталогов документации на портале Gramax.
 
     Возвращает таблицу с названиями и ID каталогов.
     """
     try:
-        client = _get_client()
+        client = ctx.lifespan_context["client"]
         data = await client.list_catalogs()
         return format_catalogs_list(data)
     except GramaxError as e:
@@ -50,22 +47,24 @@ async def gramax_list_catalogs() -> str:
 
 
 @mcp.tool()
-async def gramax_get_navigation(catalog_id: str) -> str:
+async def gramax_get_navigation(ctx: Context, catalog_id: str) -> str:
     """Получить дерево навигации каталога: разделы, статьи, ссылки.
 
     Args:
         catalog_id: ID каталога (получить через gramax_list_catalogs)
     """
     try:
-        client = _get_client()
+        client = ctx.lifespan_context["client"]
+        base_url = ctx.lifespan_context["base_url"]
         data = await client.get_navigation(catalog_id)
-        return format_navigation(catalog_id, data, _base_url)
+        return format_navigation(catalog_id, data, base_url)
     except GramaxError as e:
         return str(e)
 
 
 @mcp.tool()
 async def gramax_search(
+    ctx: Context,
     query: str,
     catalog_name: str | None = None,
     search_type: str | None = None,
@@ -92,7 +91,8 @@ async def gramax_search(
             ]}
     """
     try:
-        client = _get_client()
+        client = ctx.lifespan_context["client"]
+        base_url = ctx.lifespan_context["base_url"]
         results = await client.search(
             query,
             catalog_name=catalog_name,
@@ -101,13 +101,13 @@ async def gramax_search(
             resource_filter=resource_filter,
             property_filter=property_filter,
         )
-        return format_search_results(results, _base_url)
+        return format_search_results(results, base_url)
     except GramaxError as e:
         return str(e)
 
 
 @mcp.tool()
-async def gramax_get_article(catalog_id: str, article_id: str) -> str:
+async def gramax_get_article(ctx: Context, catalog_id: str, article_id: str) -> str:
     """Получить содержимое статьи в формате Markdown.
 
     Args:
@@ -115,7 +115,7 @@ async def gramax_get_article(catalog_id: str, article_id: str) -> str:
         article_id: ID статьи (получить через gramax_get_navigation или gramax_search)
     """
     try:
-        client = _get_client()
+        client = ctx.lifespan_context["client"]
         html = await client.get_article_html(catalog_id, article_id)
         return html_to_markdown(html)
     except GramaxError as e:
