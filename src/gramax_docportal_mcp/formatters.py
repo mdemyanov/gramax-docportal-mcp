@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
@@ -137,7 +139,6 @@ def html_to_markdown(html: str) -> str:
     )
 
     # Clean up excessive blank lines
-    while "\n\n\n" in md:
-        md = md.replace("\n\n\n", "\n\n")
+    md = re.sub(r"\n{3,}", "\n\n", md)
 
     return md.strip()

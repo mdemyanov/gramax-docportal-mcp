@@ -89,7 +89,7 @@ class TestFormatNavigation:
         assert "No ID Item" in result
 
     def test_deep_tree_truncated(self):
-        from gramax_docportal_mcp.formatters import format_navigation, MAX_NAV_DEPTH
+        from gramax_docportal_mcp.formatters import MAX_NAV_DEPTH, format_navigation
 
         node = {"id": f"level-{MAX_NAV_DEPTH + 1}", "title": f"Level {MAX_NAV_DEPTH + 1}"}
         for i in range(MAX_NAV_DEPTH, 0, -1):
@@ -225,3 +225,12 @@ class TestHtmlToMarkdown:
 
         assert html_to_markdown("") == ""
         assert html_to_markdown("   ") == ""
+
+    def test_collapses_multiple_blank_lines(self):
+        from gramax_docportal_mcp.formatters import html_to_markdown
+
+        html = "<p>A</p><br><br><br><br><br><p>B</p>"
+        result = html_to_markdown(html)
+        assert "\n\n\n" not in result
+        assert "A" in result
+        assert "B" in result
