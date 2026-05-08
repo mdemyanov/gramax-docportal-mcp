@@ -171,3 +171,92 @@ async def test_ai_search_yields_text_chunks(httpx_mock: HTTPXMock, base_url, api
     assert "/api/search/chat" in url_str
     assert "query=test" in url_str
     assert request.headers["authorization"] == "Bearer test-api-token-123"
+
+
+async def test_ai_search_passes_all_params(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(text="")
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        async for _ in client.ai_search(
+            "Что такое ITSM",
+            catalog_name="commercial-knowlage",
+            articles_language="ru",
+            response_language="en",
+            current_article="commercial-knowlage/intro",
+        ):
+            pass
+
+    url_str = str(httpx_mock.get_request().url)
+    assert "catalogName=commercial-knowlage" in url_str
+    assert "articlesLanguage=ru" in url_str
+    assert "responseLanguage=en" in url_str
+    # currentArticle URL-encoded
+    assert "currentArticle=commercial-knowlage" in url_str
+
+
+async def test_ai_search_skips_invalid_json_lines(httpx_mock: HTTPXMock, base_url, api_token):
+    ndjson = (
+        '{"type":"text","text":"a"}\n'
+        'this is not json\n'
+        '\n'
+        '{"type":"text","text":"b"}\n'
+    )
+    httpx_mock.add_response(text=ndjson)
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        chunks = [c async for c in client.ai_search("q")]
+
+    assert chunks == ["a", "b"]
+
+
+async def test_ai_search_skips_non_text_chunks(httpx_mock: HTTPXMock, base_url, api_token):
+    ndjson = (
+        '{"type":"text","text":"a"}\n'
+        '{"type":"meta","data":{}}\n'
+        '{"type":"text","text":"b"}\n'
+    )
+    httpx_mock.add_response(text=ndjson)
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        chunks = [c async for c in client.ai_search("q")]
+
+    assert chunks == ["a", "b"]
+
+
+async def test_ai_search_empty_stream(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(text="")
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        chunks = [c async for c in client.ai_search("q")]
+
+    assert chunks == []
+
+
+async def test_ai_search_401_raises_auth_error(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(status_code=401, text="Unauthorized")
+
+    from gramax_docportal_mcp.client import GramaxAuthError, GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxAuthError, match="Токен невалиден"):
+            async for _ in client.ai_search("q"):
+                pass
+
+
+async def test_ai_search_404_raises_not_found(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(status_code=404, text="Not Found")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNotFoundError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNotFoundError, match="не найден"):
+            async for _ in client.ai_search("q", catalog_name="missing"):
+                pass
