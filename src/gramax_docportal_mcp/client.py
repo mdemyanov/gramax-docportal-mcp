@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import quote
 
@@ -105,3 +107,43 @@ class GramaxClient:
         self._check_response(response, f"поиск '{query}'")
         result: list[dict[str, Any]] = response.json()
         return result
+
+    async def ai_search(
+        self,
+        query: str,
+        *,
+        catalog_name: str | None = None,
+        articles_language: str | None = None,
+        response_language: str | None = None,
+        current_article: str | None = None,
+        stream_timeout: float = 120.0,
+    ) -> AsyncIterator[str]:
+        """Yield text chunks from /api/search/chat NDJSON stream."""
+        params: dict[str, str] = {"query": query}
+        if catalog_name is not None:
+            params["catalogName"] = catalog_name
+        if articles_language is not None:
+            params["articlesLanguage"] = articles_language
+        if response_language is not None:
+            params["responseLanguage"] = response_language
+        if current_article is not None:
+            params["currentArticle"] = current_article
+
+        async with self._client.stream(
+            "GET",
+            "/api/search/chat",
+            params=params,
+            timeout=stream_timeout,
+        ) as response:
+            self._check_response(response, f"AI-поиск '{query}'")
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if obj.get("type") == "text":
+                    text = obj.get("text", "")
+                    if text:
+                        yield text

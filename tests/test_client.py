@@ -151,3 +151,23 @@ async def test_error_404(httpx_mock: HTTPXMock, base_url, api_token):
     async with GramaxClient(base_url=base_url, api_token=api_token) as client:
         with pytest.raises(GramaxNotFoundError, match="не найден"):
             await client.get_navigation("bad-catalog")
+
+
+async def test_ai_search_yields_text_chunks(httpx_mock: HTTPXMock, base_url, api_token):
+    ndjson = (
+        '{"type":"text","text":"hello"}\n'
+        '{"type":"text","text":" world"}\n'
+    )
+    httpx_mock.add_response(text=ndjson)
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        chunks = [c async for c in client.ai_search("test")]
+
+    assert chunks == ["hello", " world"]
+    request = httpx_mock.get_request()
+    url_str = str(request.url)
+    assert "/api/search/chat" in url_str
+    assert "query=test" in url_str
+    assert request.headers["authorization"] == "Bearer test-api-token-123"
