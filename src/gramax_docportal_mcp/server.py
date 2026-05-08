@@ -6,16 +6,19 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
+import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
 
 from gramax_docportal_mcp.client import GramaxClient, GramaxError
 from gramax_docportal_mcp.config import Settings
 from gramax_docportal_mcp.formatters import (
+    format_ai_answer,
     format_catalogs_list,
     format_navigation,
     format_search_results,
     html_to_markdown,
+    parse_chat_stream,
 )
 
 
@@ -25,7 +28,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     settings = Settings()
     base_url = settings.gramax_base_url.rstrip("/")
     async with GramaxClient(base_url=base_url, api_token=settings.gramax_api_token) as client:
-        yield {"client": client, "base_url": base_url}
+        yield {"client": client, "base_url": base_url, "settings": settings}
 
 
 mcp = FastMCP(
@@ -131,6 +134,67 @@ async def gramax_get_article(ctx: Context, catalog_id: str, article_id: str) -> 
         return html_to_markdown(html)
     except GramaxError as e:
         return str(e)
+
+
+@mcp.tool()
+async def gramax_ai_search(
+    ctx: Context,
+    query: str,
+    catalog_name: str | None = None,
+    articles_language: str | None = None,
+    response_language: str | None = None,
+    current_article: str | None = None,
+) -> str:
+    """AI-поиск по документации Gramax: связный ответ с ссылками на источники.
+
+    Использовать для вопросов в свободной форме, когда нужен сгенерированный
+    ответ, а не список релевантных статей. Для списка результатов —
+    gramax_search.
+
+    Args:
+        query: Вопрос на естественном языке.
+        catalog_name: Имя каталога для контекста (без него — по всем).
+        articles_language: Язык статей в индексе ("ru", "en", ...).
+            По умолчанию — из GRAMAX_AI_ARTICLES_LANGUAGE (ru).
+        response_language: Язык генерируемого ответа. По умолчанию —
+            из GRAMAX_AI_RESPONSE_LANGUAGE (ru).
+        current_article: ID текущей статьи как контекст ("catalog_id/path").
+    """
+    if not query or not query.strip():
+        return "Ошибка: поисковый запрос не может быть пустым."
+
+    client: GramaxClient = ctx.lifespan_context["client"]
+    base_url: str = ctx.lifespan_context["base_url"]
+    settings: Settings = ctx.lifespan_context["settings"]
+
+    chunks: list[str] = []
+    try:
+        async for chunk in client.ai_search(
+            query,
+            catalog_name=catalog_name,
+            articles_language=articles_language or settings.gramax_ai_articles_language,
+            response_language=response_language or settings.gramax_ai_response_language,
+            current_article=current_article,
+            timeout=settings.gramax_ai_timeout,
+        ):
+            chunks.append(chunk)
+            await ctx.report_progress(progress=len(chunks))
+    except httpx.TimeoutException:
+        return (
+            f"Превышено время ожидания AI-ответа "
+            f"({settings.gramax_ai_timeout:.0f}s). "
+            "Попробуйте сузить запрос или увеличить GRAMAX_AI_TIMEOUT."
+        )
+    except (httpx.RemoteProtocolError, httpx.ReadError):
+        # Сетевой разрыв в середине стрима — отдаём накопленное с пометкой.
+        parsed = parse_chat_stream(chunks)
+        partial = format_ai_answer(parsed, base_url)
+        return f"{partial}\n\n_(ответ оборван: соединение разорвано)_"
+    except GramaxError as e:
+        return str(e)
+
+    parsed = parse_chat_stream(chunks)
+    return format_ai_answer(parsed, base_url)
 
 
 def main() -> None:

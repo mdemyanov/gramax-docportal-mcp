@@ -17,7 +17,7 @@ Python 3.12+, fastmcp, httpx, pydantic-settings, markdownify
 
 Плоская 4-модульная структура:
 
-- `server.py` — 4 MCP-инструмента + точка входа
+- `server.py` — 5 MCP-инструментов + точка входа (см. AGENTS.md / README для актуального списка)
 - `client.py` — async httpx обёртка для Gramax API
 - `formatters.py` — JSON→Markdown, HTML→Markdown конвертеры
 - `config.py` — настройки из переменных окружения

@@ -7,6 +7,7 @@ from fastmcp import Context
 
 from gramax_docportal_mcp.client import GramaxAuthError, GramaxClient, GramaxError
 from gramax_docportal_mcp.server import (
+    gramax_ai_search,
     gramax_get_article,
     gramax_get_navigation,
     gramax_list_catalogs,
@@ -183,3 +184,132 @@ class TestGramaxGetArticle:
         result = await gramax_get_article(ctx, "docs", "missing")
 
         assert "Не найдено" in result
+
+
+@pytest.fixture
+def mock_ctx_ai():
+    """Context with mock GramaxClient (ai_search as real async-gen) and Settings."""
+    from gramax_docportal_mcp.config import Settings
+
+    mock_client = AsyncMock(spec=GramaxClient)
+    # ai_search must yield — replace AsyncMock attribute with a real async-gen factory.
+    holder: dict = {"chunks": [], "called": 0}
+
+    async def fake_ai_search(*args, **kwargs):
+        holder["called"] += 1
+        for c in holder["chunks"]:
+            yield c
+
+    mock_client.ai_search = fake_ai_search
+
+    settings = Settings(
+        gramax_base_url="https://docs.example.com",
+        gramax_api_token="t",  # noqa: S106
+        _env_file=None,
+    )
+
+    ctx = MagicMock(spec=Context)
+    ctx.lifespan_context = {
+        "client": mock_client,
+        "base_url": "https://docs.example.com",
+        "settings": settings,
+    }
+    ctx.report_progress = AsyncMock()
+    return ctx, mock_client, holder
+
+
+class TestGramaxAiSearch:
+    async def test_happy_path_returns_markdown_with_sources(self, mock_ctx_ai):
+        ctx, _client, holder = mock_ctx_ai
+        zwsp = "​"
+        wj = "⁠"
+        marker = f"{zwsp}{wj}CIT{wj}1{wj}cat/intro{wj}./intro.md{wj}{wj}{zwsp}"
+        holder["chunks"] = ["Hello", f" world {marker}", "."]
+
+        result = await gramax_ai_search(ctx, "test query")
+
+        assert "Hello world [1](cat/intro)." in result
+        assert "## Источники" in result
+        assert "1. `cat/intro`" in result
+        assert "https://docs.example.com/cat/intro" in result
+
+    async def test_empty_query_returns_error_without_http(self, mock_ctx_ai):
+        ctx, _client, holder = mock_ctx_ai
+
+        result = await gramax_ai_search(ctx, "   ")
+
+        assert "Ошибка" in result
+        assert "запрос" in result
+        assert holder["called"] == 0  # ai_search must NOT have been invoked
+
+    async def test_progress_called_per_chunk(self, mock_ctx_ai):
+        ctx, _client, holder = mock_ctx_ai
+        holder["chunks"] = ["a", "b", "c", "d"]
+
+        await gramax_ai_search(ctx, "q")
+
+        assert ctx.report_progress.await_count == 4
+
+    async def test_timeout_returns_russian_message(self, mock_ctx_ai):
+        import httpx
+
+        ctx, mock_client, _ = mock_ctx_ai
+
+        async def fake_timeout(*args, **kwargs):
+            raise httpx.ReadTimeout("timed out")
+            yield  # make it an async generator
+
+        mock_client.ai_search = fake_timeout
+
+        result = await gramax_ai_search(ctx, "q")
+
+        assert "Превышено время ожидания" in result
+        assert "GRAMAX_AI_TIMEOUT" in result
+
+    async def test_auth_error_propagated_as_russian(self, mock_ctx_ai):
+        ctx, mock_client, _ = mock_ctx_ai
+
+        async def fake_auth(*args, **kwargs):
+            raise GramaxAuthError("Токен невалиден или истёк.")
+            yield  # generator marker
+
+        mock_client.ai_search = fake_auth
+
+        result = await gramax_ai_search(ctx, "q")
+
+        assert "Токен невалиден" in result
+
+    async def test_uses_default_languages_from_settings(self, mock_ctx_ai):
+        """Settings defaults applied when MCP args are None."""
+        ctx, mock_client, holder = mock_ctx_ai
+        holder["chunks"] = []
+        captured: dict = {}
+
+        async def capturing(*args, **kwargs):
+            captured.update(kwargs)
+            return
+            yield  # generator marker
+
+        mock_client.ai_search = capturing
+
+        await gramax_ai_search(ctx, "q")
+
+        assert captured["articles_language"] == "ru"
+        assert captured["response_language"] == "ru"
+
+    async def test_stream_disconnect_returns_partial_with_marker(self, mock_ctx_ai):
+        """Spec: сетевой разрыв — отдаём накопленное + пометку в конце."""
+        import httpx
+
+        ctx, mock_client, _ = mock_ctx_ai
+
+        async def fake_disconnect(*args, **kwargs):
+            yield "Часть ответа до разрыва."
+            raise httpx.RemoteProtocolError("Server disconnected")
+
+        mock_client.ai_search = fake_disconnect
+
+        result = await gramax_ai_search(ctx, "q")
+
+        assert "Часть ответа до разрыва." in result
+        assert "ответ оборван" in result

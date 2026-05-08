@@ -3,9 +3,27 @@
 from __future__ import annotations
 
 import re
+from typing import TypedDict
 
 from bs4 import BeautifulSoup
 from markdownify import markdownify
+
+
+class Citation(TypedDict):
+    n: int
+    full_id: str
+
+
+class ParsedAnswer(TypedDict):
+    text: str
+    citations: list[Citation]
+
+
+_ZWSP = "​"
+_WJ = "⁠"
+_CIT_PATTERN = re.compile(
+    rf"{_ZWSP}{_WJ}CIT{_WJ}(\d+){_WJ}([^{_WJ}]+){_WJ}([^{_WJ}]+){_WJ}{_WJ}{_ZWSP}"
+)
 
 MAX_NAV_DEPTH = 20
 
@@ -142,3 +160,58 @@ def html_to_markdown(html: str) -> str:
     md = re.sub(r"\n{3,}", "\n\n", md)
 
     return md.strip()
+
+
+def parse_chat_stream(chunks: list[str]) -> ParsedAnswer:
+    """Concatenate NDJSON text chunks and extract Gramax CIT citation markers.
+
+    Returns:
+        ParsedAnswer with text (chunks joined, CIT-маркеры заменены на [N](full_id))
+        and citations (list of {"n": int, "full_id": str} в порядке появления; дубли сохранены).
+    """
+    raw = "".join(chunks)
+    citations: list[Citation] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        n = int(match.group(1))
+        full_id = match.group(2)
+        citations.append({"n": n, "full_id": full_id})
+        return f"[{n}]({full_id})"
+
+    text = _CIT_PATTERN.sub(_replace, raw)
+    return {"text": text, "citations": citations}
+
+
+def format_ai_answer(parsed: ParsedAnswer, base_url: str) -> str:
+    """Render parsed AI answer with optional Sources block.
+
+    parsed: ParsedAnswer from parse_chat_stream.
+    base_url: portal URL prefix for source links.
+    """
+    text = parsed["text"]
+    citations = parsed["citations"]
+
+    if not text.strip():
+        return "AI не сгенерировал ответ."
+
+    if not citations:
+        return text
+
+    # Dedup by (n, full_id), preserve order of first appearance, then sort by n
+    seen: set[tuple[int, str]] = set()
+    unique: list[Citation] = []
+    for c in citations:
+        key = (c["n"], c["full_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(c)
+    unique.sort(key=lambda c: c["n"])
+
+    base = base_url.rstrip("/")
+    # Gramax UI принимает full_id без .md (smoke против knowledge.nau.im, 2026-05-08).
+    lines = [text.rstrip(), "", "## Источники", ""]
+    for c in unique:
+        lines.append(f"{c['n']}. `{c['full_id']}`")
+        lines.append(f"   {base}/{c['full_id']}")
+    return "\n".join(lines)

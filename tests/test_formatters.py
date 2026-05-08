@@ -1,3 +1,5 @@
+import json as _json
+from pathlib import Path
 
 
 class TestFormatCatalogsList:
@@ -234,3 +236,191 @@ class TestHtmlToMarkdown:
         assert "\n\n\n" not in result
         assert "A" in result
         assert "B" in result
+
+
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "ai_search_response.ndjson"
+
+
+def _load_fixture_chunks() -> list[str]:
+    chunks: list[str] = []
+    for raw_line in FIXTURE_PATH.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        obj = _json.loads(line)
+        if obj.get("type") == "text":
+            text = obj.get("text", "")
+            if text:
+                chunks.append(text)
+    return chunks
+
+
+def test_parse_chat_stream_concatenates_no_markers():
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    result = parse_chat_stream(["Hello", " ", "world", "!"])
+
+    assert result == {"text": "Hello world!", "citations": []}
+
+
+def test_parse_chat_stream_empty_input():
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    assert parse_chat_stream([]) == {"text": "", "citations": []}
+
+
+def test_parse_chat_stream_synthetic_marker():
+    """Test marker built by hand from known codepoints."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    zwsp = "​"
+    wj = "⁠"
+    marker = f"{zwsp}{wj}CIT{wj}1{wj}cat/article{wj}./article.md{wj}{wj}{zwsp}"
+    chunks = ["Some text ", marker, " more text"]
+
+    result = parse_chat_stream(chunks)
+
+    assert result["text"] == "Some text [1](cat/article) more text"
+    assert result["citations"] == [{"n": 1, "full_id": "cat/article"}]
+
+
+def test_parse_chat_stream_marker_split_across_chunks():
+    """Marker may be split between NDJSON lines; concat-then-parse handles it."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    zwsp = "​"
+    wj = "⁠"
+    full_marker = f"{zwsp}{wj}CIT{wj}5{wj}foo/bar{wj}./bar.md{wj}{wj}{zwsp}"
+    half = len(full_marker) // 2
+    chunks = ["pre ", full_marker[:half], full_marker[half:], " post"]
+
+    result = parse_chat_stream(chunks)
+
+    assert result["text"] == "pre [5](foo/bar) post"
+    assert result["citations"] == [{"n": 5, "full_id": "foo/bar"}]
+
+
+def test_parse_chat_stream_real_fixture():
+    """Real Gramax NDJSON: 10 markers total, 6 unique full_ids."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    chunks = _load_fixture_chunks()
+    result = parse_chat_stream(chunks)
+
+    # Citations: 10 occurrences, with N=2..5 appearing twice
+    ns = [c["n"] for c in result["citations"]]
+    assert sorted(ns) == [1, 2, 2, 3, 3, 4, 4, 5, 5, 6]
+    full_ids = {c["full_id"] for c in result["citations"]}
+    assert full_ids == {
+        "commercial-knowlage/90-knowledge-base/glossary",
+        "commercial-knowlage/10-products/itsm-365/support",
+        "commercial-knowlage/10-products/itsm-365/outsource",
+        "commercial-knowlage/10-products/itsm-365/hr",
+        "commercial-knowlage/10-products/itsm-365/projects",
+        "commercial-knowlage/90-knowledge-base/certifications",
+    }
+    # No leftover invisible chars after replacement
+    assert "​" not in result["text"]
+    assert "⁠" not in result["text"]
+    # Inline citation present in expected place
+    assert "[1](commercial-knowlage/90-knowledge-base/glossary)" in result["text"]
+
+
+def test_format_ai_answer_empty_text():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer({"text": "", "citations": []}, "https://docs.example.com")
+
+    assert result == "AI не сгенерировал ответ."
+
+
+def test_format_ai_answer_whitespace_only_text():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer({"text": "   \n\n  ", "citations": []}, "https://docs.example.com")
+
+    assert result == "AI не сгенерировал ответ."
+
+
+def test_format_ai_answer_no_citations():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer(
+        {"text": "Just a plain answer.", "citations": []},
+        "https://docs.example.com",
+    )
+
+    assert result == "Just a plain answer."
+    assert "Источники" not in result
+
+
+def test_format_ai_answer_with_citations_dedups_same_pair():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "Foo [1](a/b) and again [1](a/b).",
+        "citations": [
+            {"n": 1, "full_id": "a/b"},
+            {"n": 1, "full_id": "a/b"},  # exact duplicate
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "## Источники" in result
+    # exactly one entry for (1, a/b)
+    assert result.count("`a/b`") == 1
+    assert "1. `a/b`" in result
+    assert "https://docs.example.com/a/b" in result
+
+
+def test_format_ai_answer_keeps_distinct_n_for_same_full_id():
+    """Different N to same full_id → two source rows (preserve inline-row mapping)."""
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "First [1](a/b) and second [3](a/b).",
+        "citations": [
+            {"n": 1, "full_id": "a/b"},
+            {"n": 3, "full_id": "a/b"},
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "1. `a/b`" in result
+    assert "3. `a/b`" in result
+
+
+def test_format_ai_answer_sorts_by_n():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "[3](c) [1](a) [2](b)",
+        "citations": [
+            {"n": 3, "full_id": "c"},
+            {"n": 1, "full_id": "a"},
+            {"n": 2, "full_id": "b"},
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    src_block = result.split("## Источники", 1)[1]
+    pos_1 = src_block.find("1. `a`")
+    pos_2 = src_block.find("2. `b`")
+    pos_3 = src_block.find("3. `c`")
+    assert 0 <= pos_1 < pos_2 < pos_3
+
+
+def test_format_ai_answer_sources_url_format():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "[1](cat/path/article)",
+        "citations": [{"n": 1, "full_id": "cat/path/article"}],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "https://docs.example.com/cat/path/article" in result
