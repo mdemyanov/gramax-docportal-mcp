@@ -116,7 +116,7 @@ class GramaxClient:
         articles_language: str | None = None,
         response_language: str | None = None,
         current_article: str | None = None,
-        stream_timeout: float = 120.0,
+        timeout: float = 120.0,  # noqa: ASYNC109 — timeout прокидывается в httpx, использовать asyncio.timeout здесь нельзя из-за streaming
     ) -> AsyncIterator[str]:
         """Yield text chunks from /api/search/chat NDJSON stream."""
         params: dict[str, str] = {"query": query}
@@ -133,7 +133,7 @@ class GramaxClient:
             "GET",
             "/api/search/chat",
             params=params,
-            timeout=stream_timeout,
+            timeout=timeout,
         ) as response:
             self._check_response(response, f"AI-поиск '{query}'")
             async for line in response.aiter_lines():
