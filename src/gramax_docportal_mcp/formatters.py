@@ -177,3 +177,37 @@ def parse_chat_stream(chunks: list[str]) -> dict:
 
     text = _CIT_PATTERN.sub(_replace, raw)
     return {"text": text, "citations": citations}
+
+
+def format_ai_answer(parsed: dict, base_url: str) -> str:
+    """Render parsed AI answer with optional Sources block.
+
+    parsed: {"text": str, "citations": list[Citation]} from parse_chat_stream.
+    base_url: portal URL prefix for source links.
+    """
+    text = parsed.get("text", "")
+    citations: list[Citation] = parsed.get("citations", [])
+
+    if not text.strip():
+        return "AI не сгенерировал ответ."
+
+    if not citations:
+        return text
+
+    # Dedup by (n, full_id), preserve order of first appearance, then sort by n
+    seen: set[tuple[int, str]] = set()
+    unique: list[Citation] = []
+    for c in citations:
+        key = (c["n"], c["full_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(c)
+    unique.sort(key=lambda c: c["n"])
+
+    base = base_url.rstrip("/")
+    lines = [text.rstrip(), "", "## Источники", ""]
+    for c in unique:
+        lines.append(f"{c['n']}. `{c['full_id']}`")
+        lines.append(f"   {base}/{c['full_id']}")
+    return "\n".join(lines)

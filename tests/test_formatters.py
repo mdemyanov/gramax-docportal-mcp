@@ -324,3 +324,103 @@ def test_parse_chat_stream_real_fixture():
     assert "⁠" not in result["text"]
     # Inline citation present in expected place
     assert "[1](commercial-knowlage/90-knowledge-base/glossary)" in result["text"]
+
+
+def test_format_ai_answer_empty_text():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer({"text": "", "citations": []}, "https://docs.example.com")
+
+    assert result == "AI не сгенерировал ответ."
+
+
+def test_format_ai_answer_whitespace_only_text():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer({"text": "   \n\n  ", "citations": []}, "https://docs.example.com")
+
+    assert result == "AI не сгенерировал ответ."
+
+
+def test_format_ai_answer_no_citations():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    result = format_ai_answer(
+        {"text": "Just a plain answer.", "citations": []},
+        "https://docs.example.com",
+    )
+
+    assert result == "Just a plain answer."
+    assert "Источники" not in result
+
+
+def test_format_ai_answer_with_citations_dedups_same_pair():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "Foo [1](a/b) and again [1](a/b).",
+        "citations": [
+            {"n": 1, "full_id": "a/b"},
+            {"n": 1, "full_id": "a/b"},  # exact duplicate
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "## Источники" in result
+    # exactly one entry for (1, a/b)
+    assert result.count("`a/b`") == 1
+    assert "1. `a/b`" in result
+    assert "https://docs.example.com/a/b" in result
+
+
+def test_format_ai_answer_keeps_distinct_n_for_same_full_id():
+    """Different N to same full_id → two source rows (preserve inline-row mapping)."""
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "First [1](a/b) and second [3](a/b).",
+        "citations": [
+            {"n": 1, "full_id": "a/b"},
+            {"n": 3, "full_id": "a/b"},
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "1. `a/b`" in result
+    assert "3. `a/b`" in result
+
+
+def test_format_ai_answer_sorts_by_n():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "[3](c) [1](a) [2](b)",
+        "citations": [
+            {"n": 3, "full_id": "c"},
+            {"n": 1, "full_id": "a"},
+            {"n": 2, "full_id": "b"},
+        ],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    src_block = result.split("## Источники", 1)[1]
+    pos_1 = src_block.find("1. `a`")
+    pos_2 = src_block.find("2. `b`")
+    pos_3 = src_block.find("3. `c`")
+    assert 0 <= pos_1 < pos_2 < pos_3
+
+
+def test_format_ai_answer_sources_url_format():
+    from gramax_docportal_mcp.formatters import format_ai_answer
+
+    parsed = {
+        "text": "[1](cat/path/article)",
+        "citations": [{"n": 1, "full_id": "cat/path/article"}],
+    }
+
+    result = format_ai_answer(parsed, "https://docs.example.com")
+
+    assert "https://docs.example.com/cat/path/article" in result
