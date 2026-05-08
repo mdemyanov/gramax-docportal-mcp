@@ -14,6 +14,11 @@ class Citation(TypedDict):
     full_id: str
 
 
+class ParsedAnswer(TypedDict):
+    text: str
+    citations: list[Citation]
+
+
 _ZWSP = "​"
 _WJ = "⁠"
 _CIT_PATTERN = re.compile(
@@ -157,14 +162,12 @@ def html_to_markdown(html: str) -> str:
     return md.strip()
 
 
-def parse_chat_stream(chunks: list[str]) -> dict:
+def parse_chat_stream(chunks: list[str]) -> ParsedAnswer:
     """Concatenate NDJSON text chunks and extract Gramax CIT citation markers.
 
     Returns:
-        {"text": str, "citations": list[Citation]}
-        - text: chunks joined with all CIT markers replaced by `[N](full_id)`.
-        - citations: list of {"n": int, "full_id": str} in order of appearance;
-          duplicates kept (caller decides how to render).
+        ParsedAnswer with text (chunks joined, CIT-маркеры заменены на [N](full_id))
+        and citations (list of {"n": int, "full_id": str} в порядке появления; дубли сохранены).
     """
     raw = "".join(chunks)
     citations: list[Citation] = []
@@ -179,14 +182,14 @@ def parse_chat_stream(chunks: list[str]) -> dict:
     return {"text": text, "citations": citations}
 
 
-def format_ai_answer(parsed: dict[str, object], base_url: str) -> str:
+def format_ai_answer(parsed: ParsedAnswer, base_url: str) -> str:
     """Render parsed AI answer with optional Sources block.
 
-    parsed: {"text": str, "citations": list[Citation]} from parse_chat_stream.
+    parsed: ParsedAnswer from parse_chat_stream.
     base_url: portal URL prefix for source links.
     """
-    text: str = str(parsed.get("text", ""))
-    citations: list[Citation] = parsed.get("citations", [])  # type: ignore[assignment]
+    text = parsed["text"]
+    citations = parsed["citations"]
 
     if not text.strip():
         return "AI не сгенерировал ответ."
@@ -206,6 +209,7 @@ def format_ai_answer(parsed: dict[str, object], base_url: str) -> str:
     unique.sort(key=lambda c: c["n"])
 
     base = base_url.rstrip("/")
+    # Gramax UI принимает full_id без .md (smoke против knowledge.nau.im, 2026-05-08).
     lines = [text.rstrip(), "", "## Источники", ""]
     for c in unique:
         lines.append(f"{c['n']}. `{c['full_id']}`")
