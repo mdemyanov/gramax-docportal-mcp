@@ -1,3 +1,5 @@
+import json as _json
+from pathlib import Path
 
 
 class TestFormatCatalogsList:
@@ -234,3 +236,91 @@ class TestHtmlToMarkdown:
         assert "\n\n\n" not in result
         assert "A" in result
         assert "B" in result
+
+
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "ai_search_response.ndjson"
+
+
+def _load_fixture_chunks() -> list[str]:
+    chunks: list[str] = []
+    for raw_line in FIXTURE_PATH.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        obj = _json.loads(line)
+        if obj.get("type") == "text":
+            text = obj.get("text", "")
+            if text:
+                chunks.append(text)
+    return chunks
+
+
+def test_parse_chat_stream_concatenates_no_markers():
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    result = parse_chat_stream(["Hello", " ", "world", "!"])
+
+    assert result == {"text": "Hello world!", "citations": []}
+
+
+def test_parse_chat_stream_empty_input():
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    assert parse_chat_stream([]) == {"text": "", "citations": []}
+
+
+def test_parse_chat_stream_synthetic_marker():
+    """Test marker built by hand from known codepoints."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    zwsp = "​"
+    wj = "⁠"
+    marker = f"{zwsp}{wj}CIT{wj}1{wj}cat/article{wj}./article.md{wj}{wj}{zwsp}"
+    chunks = ["Some text ", marker, " more text"]
+
+    result = parse_chat_stream(chunks)
+
+    assert result["text"] == "Some text [1](cat/article) more text"
+    assert result["citations"] == [{"n": 1, "full_id": "cat/article"}]
+
+
+def test_parse_chat_stream_marker_split_across_chunks():
+    """Marker may be split between NDJSON lines; concat-then-parse handles it."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    zwsp = "​"
+    wj = "⁠"
+    full_marker = f"{zwsp}{wj}CIT{wj}5{wj}foo/bar{wj}./bar.md{wj}{wj}{zwsp}"
+    half = len(full_marker) // 2
+    chunks = ["pre ", full_marker[:half], full_marker[half:], " post"]
+
+    result = parse_chat_stream(chunks)
+
+    assert result["text"] == "pre [5](foo/bar) post"
+    assert result["citations"] == [{"n": 5, "full_id": "foo/bar"}]
+
+
+def test_parse_chat_stream_real_fixture():
+    """Real Gramax NDJSON: 10 markers total, 6 unique full_ids."""
+    from gramax_docportal_mcp.formatters import parse_chat_stream
+
+    chunks = _load_fixture_chunks()
+    result = parse_chat_stream(chunks)
+
+    # Citations: 10 occurrences, with N=2..5 appearing twice
+    ns = [c["n"] for c in result["citations"]]
+    assert sorted(ns) == [1, 2, 2, 3, 3, 4, 4, 5, 5, 6]
+    full_ids = {c["full_id"] for c in result["citations"]}
+    assert full_ids == {
+        "commercial-knowlage/90-knowledge-base/glossary",
+        "commercial-knowlage/10-products/itsm-365/support",
+        "commercial-knowlage/10-products/itsm-365/outsource",
+        "commercial-knowlage/10-products/itsm-365/hr",
+        "commercial-knowlage/10-products/itsm-365/projects",
+        "commercial-knowlage/90-knowledge-base/certifications",
+    }
+    # No leftover invisible chars after replacement
+    assert "​" not in result["text"]
+    assert "⁠" not in result["text"]
+    # Inline citation present in expected place
+    assert "[1](commercial-knowlage/90-knowledge-base/glossary)" in result["text"]

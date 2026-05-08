@@ -3,9 +3,22 @@
 from __future__ import annotations
 
 import re
+from typing import TypedDict
 
 from bs4 import BeautifulSoup
 from markdownify import markdownify
+
+
+class Citation(TypedDict):
+    n: int
+    full_id: str
+
+
+_ZWSP = "​"
+_WJ = "⁠"
+_CIT_PATTERN = re.compile(
+    rf"{_ZWSP}{_WJ}CIT{_WJ}(\d+){_WJ}([^{_WJ}]+){_WJ}([^{_WJ}]+){_WJ}{_WJ}{_ZWSP}"
+)
 
 MAX_NAV_DEPTH = 20
 
@@ -142,3 +155,25 @@ def html_to_markdown(html: str) -> str:
     md = re.sub(r"\n{3,}", "\n\n", md)
 
     return md.strip()
+
+
+def parse_chat_stream(chunks: list[str]) -> dict:
+    """Concatenate NDJSON text chunks and extract Gramax CIT citation markers.
+
+    Returns:
+        {"text": str, "citations": list[Citation]}
+        - text: chunks joined with all CIT markers replaced by `[N](full_id)`.
+        - citations: list of {"n": int, "full_id": str} in order of appearance;
+          duplicates kept (caller decides how to render).
+    """
+    raw = "".join(chunks)
+    citations: list[Citation] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        n = int(match.group(1))
+        full_id = match.group(2)
+        citations.append({"n": n, "full_id": full_id})
+        return f"[{n}]({full_id})"
+
+    text = _CIT_PATTERN.sub(_replace, raw)
+    return {"text": text, "citations": citations}
