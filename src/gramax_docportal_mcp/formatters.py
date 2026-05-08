@@ -179,14 +179,14 @@ def parse_chat_stream(chunks: list[str]) -> dict:
     return {"text": text, "citations": citations}
 
 
-def format_ai_answer(parsed: dict, base_url: str) -> str:
+def format_ai_answer(parsed: dict[str, object], base_url: str) -> str:
     """Render parsed AI answer with optional Sources block.
 
     parsed: {"text": str, "citations": list[Citation]} from parse_chat_stream.
     base_url: portal URL prefix for source links.
     """
-    text = parsed.get("text", "")
-    citations: list[Citation] = parsed.get("citations", [])
+    text: str = str(parsed.get("text", ""))
+    citations: list[Citation] = parsed.get("citations", [])  # type: ignore[assignment]
 
     if not text.strip():
         return "AI не сгенерировал ответ."
