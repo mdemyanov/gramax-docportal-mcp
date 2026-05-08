@@ -1,6 +1,6 @@
 # ADR-0001: Streaming AI-инструмент — аккумулировать ответ + heartbeat
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-05-08
 **Author:** sa-agent (на основе brainstorming PM↔пользователь)
 
