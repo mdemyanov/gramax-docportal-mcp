@@ -41,3 +41,14 @@ Auth: `Authorization: Bearer <token>` (получить через `GET /api/use
 - Все сообщения об ошибках на русском
 - HTML статей конвертируется в Markdown через markdownify
 - article_id в URL передаётся URL-encoded
+
+## Команда и workflow
+
+В проекте определена команда из 4 агентов: PM (orchestrator) + Researcher + SA + Dev. Карта команды, контракт вызова субагентов, канонический workflow и красные линии — в [AGENTS.md](AGENTS.md).
+
+Для новых фич:
+1. PM декомпозирует через `superpowers:brainstorming` → `writing-plans`
+2. SA пишет спеку в `docs/superpowers/specs/` (+ ADR в `docs/architecture/adr/` при значимых решениях)
+3. Dev реализует через `superpowers:test-driven-development`
+
+Уроки команды — в [docs/lessons-learned.md](docs/lessons-learned.md).
