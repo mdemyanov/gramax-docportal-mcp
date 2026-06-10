@@ -1,5 +1,12 @@
+import json
 import json as _json
 from pathlib import Path
+
+SEARCH_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "search_response.json"
+
+
+def _load_search_fixture() -> list[dict]:
+    return json.loads(SEARCH_FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
 class TestFormatCatalogsList:
@@ -194,6 +201,235 @@ class TestFormatSearchResults:
         ]
         result = _render_highlights(items)
         assert result == "обычный **выделенный** текст"
+
+
+class TestRenderBreadcrumbTitle:
+    """AC-2, AC-5: _render_breadcrumb_title — plain text, no bold, defensive str."""
+
+    def test_list_of_fragments_plain_text_no_bold(self):
+        """AC-2: list title renders as plain text without ** markers."""
+        from gramax_docportal_mcp.formatters import _render_breadcrumb_title
+
+        title = [{"type": "highlight", "text": "Настройка"}, {"type": "text", "text": " ВКС"}]
+        result = _render_breadcrumb_title(title)
+        assert result == "Настройка ВКС"
+        assert "**" not in result
+
+    def test_list_single_highlight_no_bold(self):
+        """AC-2: single highlight fragment — plain text, no bold."""
+        from gramax_docportal_mcp.formatters import _render_breadcrumb_title
+
+        title = [{"type": "highlight", "text": "Настройки"}]
+        result = _render_breadcrumb_title(title)
+        assert result == "Настройки"
+        assert "**" not in result
+
+    def test_string_title_returned_as_is(self):
+        """AC-5: string title passed through without exception."""
+        from gramax_docportal_mcp.formatters import _render_breadcrumb_title
+
+        result = _render_breadcrumb_title("Раздел")
+        assert result == "Раздел"
+
+    def test_empty_list_returns_empty_string(self):
+        """Edge case: empty list → empty string."""
+        from gramax_docportal_mcp.formatters import _render_breadcrumb_title
+
+        result = _render_breadcrumb_title([])
+        assert result == ""
+
+
+class TestPropertiesIdKey:
+    """AC-6, AC-7, AC-8: properties with id key, empty value, empty list."""
+
+    def test_properties_with_id_key(self):
+        """AC-6: properties with 'id' key (no 'name') render correctly."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = [
+            {
+                "type": "article",
+                "isRecommended": False,
+                "title": [{"type": "text", "text": "Test"}],
+                "url": "/demo/test",
+                "breadcrumbs": [],
+                "catalog": {"name": "demo", "title": "Demo"},
+                "items": [],
+                "properties": [
+                    {"id": "Category", "value": ["setup"]},
+                    {"id": "Feature", "value": ["integration"]},
+                ],
+            }
+        ]
+        result = format_search_results(results, "https://example.test")
+        assert "Category: setup" in result
+        assert "Feature: integration" in result
+
+    def test_properties_empty_value_list(self):
+        """AC-7: property with empty value list renders without crash."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = [
+            {
+                "type": "article",
+                "isRecommended": False,
+                "title": [{"type": "text", "text": "Test"}],
+                "url": "/demo/test",
+                "breadcrumbs": [],
+                "catalog": {"name": "demo", "title": "Demo"},
+                "items": [],
+                "properties": [
+                    {"id": "Segment", "value": []},
+                ],
+            }
+        ]
+        result = format_search_results(results, "https://example.test")
+        assert "Segment: " in result
+
+    def test_properties_empty_renders_no_tag(self):
+        """AC-8: empty properties list → no 🏷️ line in output."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = [
+            {
+                "type": "article",
+                "isRecommended": False,
+                "title": [{"type": "text", "text": "Test"}],
+                "url": "/demo/test",
+                "breadcrumbs": [],
+                "catalog": {"name": "demo", "title": "Demo"},
+                "items": [],
+                "properties": [],
+            }
+        ]
+        result = format_search_results(results, "https://example.test")
+        assert "🏷️" not in result
+
+    def test_properties_value_none_no_crash(self):
+        """Edge: value=None → no crash, renders as empty string."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = [
+            {
+                "type": "article",
+                "isRecommended": False,
+                "title": [{"type": "text", "text": "Test"}],
+                "url": "/demo/test",
+                "breadcrumbs": [],
+                "catalog": {"name": "demo", "title": "Demo"},
+                "items": [],
+                "properties": [{"id": "Foo", "value": None}],
+            }
+        ]
+        # Should not raise
+        result = format_search_results(results, "https://example.test")
+        assert "Foo:" in result
+
+
+class TestFormatSearchResultsRealFixture:
+    """AC-1..AC-10: full integration test against contract fixture."""
+
+    def test_no_exception_with_real_api_payload(self):
+        """AC-1: no exception when processing fixture with list breadcrumb titles."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        # Must not raise TypeError
+        output = format_search_results(results, "https://example.test")
+        assert isinstance(output, str)
+
+    def test_breadcrumb_path_plain_text_no_bold(self):
+        """AC-2: path string contains plain text, no ** markers."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        # The path for result 1: Demo Catalog > Настройки > Интеграции > Настройка ВКС
+        assert "Настройки" in output
+        assert "Интеграции" in output
+        assert "Настройка ВКС" in output
+        # No bold markers inside path
+        assert "**Настройки**" not in output
+
+    def test_breadcrumb_path_includes_catalog_name(self):
+        """AC-3: path includes catalog title as first element."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        assert "📂 Demo Catalog" in output
+
+    def test_empty_breadcrumbs_shows_catalog_only(self):
+        """AC-4: result 2 has empty breadcrumbs → path is only catalog title."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        # Result 2 is isRecommended=true, title "Обзор продукта"
+        # After the ⭐ Обзор продукта line, path should be just "📂 Demo Catalog"
+        lines = output.splitlines()
+        overview_idx = next(i for i, line in enumerate(lines) if "Обзор продукта" in line)
+        path_line = lines[overview_idx + 1]
+        assert path_line == "📂 Demo Catalog"
+
+    def test_string_breadcrumb_title_no_crash(self):
+        """AC-5: result 3 has string breadcrumb title → no crash, string used as-is."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        # Result 3: breadcrumbs[0].title = "Раздел" (string)
+        assert "Раздел" in output
+
+    def test_properties_id_key_rendered(self):
+        """AC-6: result 1 properties use 'id' key → Category: setup | Feature: integration."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        assert "Category: setup" in output
+        assert "Feature: integration" in output
+
+    def test_properties_empty_value_no_crash(self):
+        """AC-7: result 2 Segment has value=[] → renders Segment: (empty) without crash."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        assert "Segment: " in output
+
+    def test_empty_properties_no_tag(self):
+        """AC-8: result 3 has empty properties → no 🏷️ in that result's section."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        # The last result ("Устаревший формат") has empty properties
+        # Find its section and ensure no 🏷️ appears between it and the next "##" or end
+        lines = output.splitlines()
+        legacy_idx = next(i for i, line in enumerate(lines) if "Устаревший формат" in line)
+        section_lines = lines[legacy_idx:]
+        # There's no next ## header, so check entire trailing section
+        assert not any("🏷️" in line for line in section_lines)
+
+    def test_recommended_result_has_star(self):
+        """AC-9: isRecommended=true → ⭐ prefix in title."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        assert "⭐ Обзор продукта" in output
+
+    def test_snippet_from_top_level_paragraph_only(self):
+        """AC-10: snippet from first top-level paragraph; block items ignored."""
+        from gramax_docportal_mcp.formatters import format_search_results
+
+        results = _load_search_fixture()
+        output = format_search_results(results, "https://example.test")
+        # Result 1 snippet: "**Настройка** выполняется через раздел"
+        assert "**Настройка** выполняется через раздел" in output
+        # Block content "Текст внутри блока" must NOT appear in output
+        assert "Текст внутри блока" not in output
 
 
 class TestHtmlToMarkdown:
