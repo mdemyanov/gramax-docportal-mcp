@@ -365,3 +365,12 @@ class TestGramaxListCatalogsServerErrors:
         assert "503" in result
         assert "Попробуйте позже" in result
         assert "HTTPStatusError" not in result
+
+
+class TestServerInfo:
+    def test_server_version_matches_package_version(self):
+        from importlib.metadata import version
+
+        from gramax_docportal_mcp.server import mcp
+
+        assert mcp.version == version("gramax-docportal-mcp")

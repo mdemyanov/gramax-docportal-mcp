@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from importlib.metadata import version as _package_version
 from typing import Any
 
 import httpx
@@ -33,6 +34,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
 
 mcp = FastMCP(
     "Gramax",
+    version=_package_version("gramax-docportal-mcp"),
     instructions="Search and read documentation from Gramax Doc Portal",
     lifespan=app_lifespan,
 )
