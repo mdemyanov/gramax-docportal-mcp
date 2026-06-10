@@ -20,6 +20,14 @@ class GramaxNotFoundError(GramaxError):
     """Catalog or article not found."""
 
 
+class GramaxServerError(GramaxError):
+    """Gramax server returned a 5xx error."""
+
+
+class GramaxNetworkError(GramaxError):
+    """Network error: timeout, connection failure, or invalid response."""
+
+
 class GramaxClient:
     """Async HTTP client for Gramax Doc Portal API.
 
@@ -50,26 +58,75 @@ class GramaxClient:
             )
         if response.status_code == 404:
             raise GramaxNotFoundError(f"Ресурс не найден: {context}")
-        response.raise_for_status()
+        if response.status_code >= 500:
+            raise GramaxServerError(
+                f"Сервер Gramax вернул ошибку {response.status_code} при запросе: {context}. "
+                "Попробуйте позже или обратитесь к администратору портала."
+            )
+        response.raise_for_status()  # 4xx кроме 401/403/404
+
+    def _safe_json(self, response: httpx.Response, context: str = "") -> Any:
+        try:
+            return response.json()
+        except Exception:
+            raise GramaxNetworkError(
+                f"Gramax вернул нечитаемый ответ при запросе: {context}. "
+                "Возможно, сервер перегружен или вернул HTML вместо JSON."
+            )
 
     async def list_catalogs(self) -> dict[str, Any]:
-        response = await self._client.get("/api/catalogs")
+        try:
+            response = await self._client.get("/api/catalogs")
+        except httpx.TimeoutException:
+            raise GramaxNetworkError(
+                "Превышено время ожидания ответа от Gramax при запросе: список каталогов. "
+                "Проверьте доступность портала или увеличьте таймаут."
+            )
+        except httpx.NetworkError as e:
+            raise GramaxNetworkError(
+                "Не удалось подключиться к Gramax при запросе: список каталогов. "
+                f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
+            ) from e
         self._check_response(response, "список каталогов")
-        result: dict[str, Any] = response.json()
+        result: dict[str, Any] = self._safe_json(response, "список каталогов")
         return result
 
     async def get_navigation(self, catalog_id: str) -> dict[str, Any]:
-        response = await self._client.get(f"/api/catalogs/{catalog_id}/navigation")
-        self._check_response(response, f"каталог {catalog_id}")
-        result: dict[str, Any] = response.json()
+        context = f"навигация каталога {catalog_id}"
+        try:
+            response = await self._client.get(f"/api/catalogs/{catalog_id}/navigation")
+        except httpx.TimeoutException:
+            raise GramaxNetworkError(
+                f"Превышено время ожидания ответа от Gramax при запросе: {context}. "
+                "Проверьте доступность портала или увеличьте таймаут."
+            )
+        except httpx.NetworkError as e:
+            raise GramaxNetworkError(
+                f"Не удалось подключиться к Gramax при запросе: {context}. "
+                f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
+            ) from e
+        self._check_response(response, context)
+        result: dict[str, Any] = self._safe_json(response, context)
         return result
 
     async def get_article_html(self, catalog_id: str, article_id: str) -> str:
         encoded_id = quote(article_id, safe="")
-        response = await self._client.get(
-            f"/api/catalogs/{catalog_id}/articles/{encoded_id}/html"
-        )
-        self._check_response(response, f"статья {article_id} в каталоге {catalog_id}")
+        context = f"статья {article_id} в каталоге {catalog_id}"
+        try:
+            response = await self._client.get(
+                f"/api/catalogs/{catalog_id}/articles/{encoded_id}/html"
+            )
+        except httpx.TimeoutException:
+            raise GramaxNetworkError(
+                f"Превышено время ожидания ответа от Gramax при запросе: {context}. "
+                "Проверьте доступность портала или увеличьте таймаут."
+            )
+        except httpx.NetworkError as e:
+            raise GramaxNetworkError(
+                f"Не удалось подключиться к Gramax при запросе: {context}. "
+                f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
+            ) from e
+        self._check_response(response, context)
         return response.text
 
     async def search(
@@ -98,15 +155,41 @@ class GramaxClient:
             if property_filter is not None:
                 body["propertyFilter"] = property_filter
 
-        response = await self._client.request(
-            "GET",
-            "/api/search/searchCommand",
-            params=params,
-            json=body,
-        )
-        self._check_response(response, f"поиск '{query}'")
-        result: list[dict[str, Any]] = response.json()
+        context = f"поиск '{query}'"
+        try:
+            response = await self._client.request(
+                "GET",
+                "/api/search/searchCommand",
+                params=params,
+                json=body,
+            )
+        except httpx.TimeoutException:
+            raise GramaxNetworkError(
+                f"Превышено время ожидания ответа от Gramax при запросе: {context}. "
+                "Проверьте доступность портала или увеличьте таймаут."
+            )
+        except httpx.NetworkError as e:
+            raise GramaxNetworkError(
+                f"Не удалось подключиться к Gramax при запросе: {context}. "
+                f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
+            ) from e
+        self._check_response(response, context)
+        result: list[dict[str, Any]] = self._safe_json(response, context)
         return result
+
+    @staticmethod
+    def _parse_chat_line(line: str) -> str:
+        """Extract text from a single NDJSON line; return empty string to skip."""
+        if not line.strip():
+            return ""
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            return ""
+        if obj.get("type") == "text":
+            text = obj.get("text", "")
+            return text if isinstance(text, str) else ""
+        return ""
 
     async def ai_search(
         self,
@@ -129,21 +212,23 @@ class GramaxClient:
         if current_article is not None:
             params["currentArticle"] = current_article
 
-        async with self._client.stream(
-            "GET",
-            "/api/search/chat",
-            params=params,
-            timeout=timeout,
-        ) as response:
-            self._check_response(response, f"AI-поиск '{query}'")
-            async for line in response.aiter_lines():
-                if not line.strip():
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if obj.get("type") == "text":
-                    text = obj.get("text", "")
+        context = f"AI-поиск '{query}'"
+        try:
+            async with self._client.stream(
+                "GET",
+                "/api/search/chat",
+                params=params,
+                timeout=timeout,
+            ) as response:
+                self._check_response(response, context)
+                async for line in response.aiter_lines():
+                    text = self._parse_chat_line(line)
                     if text:
                         yield text
+        except GramaxError:
+            raise
+        except httpx.NetworkError as e:
+            raise GramaxNetworkError(
+                f"Не удалось подключиться к Gramax при запросе: {context}. "
+                f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
+            ) from e

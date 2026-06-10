@@ -313,3 +313,55 @@ class TestGramaxAiSearch:
 
         assert "Часть ответа до разрыва." in result
         assert "ответ оборван" in result
+
+
+# AC-7: gramax_search при HTTP 500 → русское сообщение (без traceback)
+class TestGramaxSearchServerErrors:
+    async def test_500_returns_russian_message_no_traceback(self, mock_ctx):
+        from gramax_docportal_mcp.client import GramaxServerError
+
+        ctx, mock_client = mock_ctx
+        mock_client.search.side_effect = GramaxServerError(
+            "Сервер Gramax вернул ошибку 500 при запросе: поиск 'test'. "
+            "Попробуйте позже или обратитесь к администратору портала."
+        )
+
+        result = await gramax_search(ctx, "test")
+
+        assert "500" in result
+        assert "Попробуйте позже" in result
+        assert "Traceback" not in result
+        assert "HTTPStatusError" not in result
+
+    async def test_network_error_returns_russian_message(self, mock_ctx):
+        from gramax_docportal_mcp.client import GramaxNetworkError
+
+        ctx, mock_client = mock_ctx
+        mock_client.search.side_effect = GramaxNetworkError(
+            "Не удалось подключиться к Gramax при запросе: поиск 'test'. "
+            "Детали: ConnectError"
+        )
+
+        result = await gramax_search(ctx, "test")
+
+        assert "подключиться" in result
+        assert "ConnectError" in result
+        assert "Traceback" not in result
+
+
+# AC-8: gramax_list_catalogs при HTTP 503 → русское сообщение
+class TestGramaxListCatalogsServerErrors:
+    async def test_503_returns_russian_message(self, mock_ctx):
+        from gramax_docportal_mcp.client import GramaxServerError
+
+        ctx, mock_client = mock_ctx
+        mock_client.list_catalogs.side_effect = GramaxServerError(
+            "Сервер Gramax вернул ошибку 503 при запросе: список каталогов. "
+            "Попробуйте позже или обратитесь к администратору портала."
+        )
+
+        result = await gramax_list_catalogs(ctx)
+
+        assert "503" in result
+        assert "Попробуйте позже" in result
+        assert "HTTPStatusError" not in result
