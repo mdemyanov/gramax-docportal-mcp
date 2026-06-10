@@ -460,3 +460,37 @@ async def test_search_503_raises_server_error(httpx_mock: HTTPXMock, base_url, a
             await client.search("query")
 
     assert "503" in str(exc_info.value)
+
+
+# AC-7: search при HTTP 500 с токеном → подсказка про GRAMAX_API_TOKEN
+async def test_search_500_with_token_mentions_token(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_response(status_code=500, text="Internal Server Error")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxServerError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxServerError) as exc_info:
+            await client.search("query")
+
+    msg = str(exc_info.value)
+    assert "500" in msg
+    assert "GRAMAX_API_TOKEN" in msg
+
+
+# AC-8: search при HTTP 500 в анонимном режиме → без подсказки про GRAMAX_API_TOKEN
+async def test_search_500_anonymous_does_not_mention_token(
+    httpx_mock: HTTPXMock, base_url
+):
+    httpx_mock.add_response(status_code=500, text="Internal Server Error")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxServerError
+
+    async with GramaxClient(base_url=base_url, api_token=None) as client:
+        with pytest.raises(GramaxServerError) as exc_info:
+            await client.search("query")
+
+    msg = str(exc_info.value)
+    assert "500" in msg
+    assert "GRAMAX_API_TOKEN" not in msg
