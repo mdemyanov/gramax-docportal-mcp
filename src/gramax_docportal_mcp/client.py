@@ -29,10 +29,13 @@ class GramaxClient:
             catalogs = await client.list_catalogs()
     """
 
-    def __init__(self, base_url: str, api_token: str) -> None:
+    def __init__(self, base_url: str, api_token: str | None) -> None:
+        headers: dict[str, str] = {}
+        if api_token:
+            headers["Authorization"] = f"Bearer {api_token}"
         self._client = httpx.AsyncClient(
             base_url=base_url,
-            headers={"Authorization": f"Bearer {api_token}"},
+            headers=headers,
             timeout=30.0,
         )
 
