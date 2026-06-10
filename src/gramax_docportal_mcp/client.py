@@ -39,6 +39,7 @@ class GramaxClient:
 
     def __init__(self, base_url: str, api_token: str | None) -> None:
         headers: dict[str, str] = {}
+        self._has_token = bool(api_token)
         if api_token:
             headers["Authorization"] = f"Bearer {api_token}"
         self._client = httpx.AsyncClient(
@@ -132,7 +133,7 @@ class GramaxClient:
         self._check_response(response, context)
         return response.text
 
-    async def search(
+    async def search(  # noqa: C901 — множество параметров и проверок токена в ошибке
         self,
         query: str,
         *,
@@ -176,7 +177,16 @@ class GramaxClient:
                 f"Не удалось подключиться к Gramax при запросе: {context}. "
                 f"Проверьте сетевое подключение и адрес портала. Детали: {type(e).__name__}"
             ) from e
-        self._check_response(response, context)
+        try:
+            self._check_response(response, context)
+        except GramaxServerError as e:
+            if self._has_token:
+                raise GramaxServerError(
+                    f"{e} Примечание: некоторые порталы возвращают 500 "
+                    "на поиск при невалидном токене — проверьте "
+                    "GRAMAX_API_TOKEN."
+                ) from e
+            raise
         result: list[dict[str, Any]] = self._safe_json(response, context)
         return result
 

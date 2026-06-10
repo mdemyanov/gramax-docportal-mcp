@@ -365,3 +365,31 @@ class TestGramaxListCatalogsServerErrors:
         assert "503" in result
         assert "Попробуйте позже" in result
         assert "HTTPStatusError" not in result
+
+
+class TestServerInfo:
+    def test_server_version_matches_package_version(self):
+        from importlib.metadata import version
+
+        from gramax_docportal_mcp.server import mcp
+
+        assert mcp.version == version("gramax-docportal-mcp")
+
+
+class TestMainConfigValidation:
+    def test_main_without_base_url_exits_with_russian_message(
+        self, monkeypatch, capsys, tmp_path
+    ):
+        # tmp_path — чтобы pydantic-settings не подхватил .env из корня репо
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("GRAMAX_BASE_URL", raising=False)
+
+        from gramax_docportal_mcp.server import main
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "GRAMAX_BASE_URL" in err
+        assert "Ошибка конфигурации" in err
