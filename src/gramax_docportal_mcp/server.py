@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import AsyncIterator
 from importlib.metadata import version as _package_version
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
+from pydantic import ValidationError
 
 from gramax_docportal_mcp.client import GramaxClient, GramaxError
 from gramax_docportal_mcp.config import Settings
@@ -200,4 +202,18 @@ async def gramax_ai_search(
 
 
 def main() -> None:
+    try:
+        Settings()
+    except ValidationError as e:
+        missing = ", ".join(
+            str(err["loc"][0]).upper() for err in e.errors()
+        )
+        print(
+            f"Ошибка конфигурации: некорректные настройки: {missing}.\n"
+            "Задайте переменную окружения GRAMAX_BASE_URL — адрес портала "
+            "Gramax, например https://docs.example.com "
+            "(в окружении или в файле .env).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     mcp.run()
