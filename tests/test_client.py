@@ -263,6 +263,32 @@ async def test_ai_search_404_raises_not_found(httpx_mock: HTTPXMock, base_url, a
                 pass
 
 
+async def test_list_catalogs_anonymous(httpx_mock: HTTPXMock, base_url):
+    """AC-4: GramaxClient with api_token=None sends no Authorization header."""
+    httpx_mock.add_response(json={"data": []})
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=None) as client:
+        await client.list_catalogs()
+
+    request = httpx_mock.get_request()
+    assert "authorization" not in request.headers
+
+
+async def test_empty_string_token_no_header(httpx_mock: HTTPXMock, base_url):
+    """AC-5: GramaxClient with api_token='' sends no Authorization header (defensive)."""
+    httpx_mock.add_response(json={"data": []})
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token="") as client:
+        await client.list_catalogs()
+
+    request = httpx_mock.get_request()
+    assert "authorization" not in request.headers
+
+
 # get_navigation при ConnectError → GramaxNetworkError
 async def test_get_navigation_connect_error_raises_network_error(
     httpx_mock: HTTPXMock, base_url, api_token

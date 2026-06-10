@@ -36,9 +36,27 @@ uv tool install gramax-docportal-mcp
 }
 ```
 
+### Публичные порталы (без токена)
+
+Если портал публичный (не требует авторизации), `GRAMAX_API_TOKEN` можно не задавать — сервер работает в анонимном режиме:
+
+```json
+{
+  "mcpServers": {
+    "gramax": {
+      "command": "uvx",
+      "args": ["gramax-docportal-mcp"],
+      "env": {
+        "GRAMAX_BASE_URL": "https://your-portal.example.com"
+      }
+    }
+  }
+}
+```
+
 ### Получение токена
 
-Откройте в браузере (будучи залогиненным на портале):
+Если портал защищён, откройте в браузере (будучи залогиненным на портале):
 
 ```
 https://your-portal.example.com/api/user/token
@@ -50,12 +68,14 @@ https://your-portal.example.com/api/user/token
 https://your-portal.example.com/api/user/token?expiresAt=2026-12-31
 ```
 
+Без токена или с истёкшим токеном сервер получит 401 при первом запросе и вернёт русскоязычное сообщение об ошибке.
+
 ## Переменные окружения
 
 | Переменная | Описание | Обязательно |
 |-----------|----------|:-----------:|
 | `GRAMAX_BASE_URL` | URL портала документации | Да |
-| `GRAMAX_API_TOKEN` | API-токен (Bearer) | Да |
+| `GRAMAX_API_TOKEN` | API-токен (Bearer); не нужен для публичных порталов | Нет |
 
 ## Расширенный поиск
 

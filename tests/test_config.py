@@ -22,14 +22,44 @@ def test_settings_requires_base_url(monkeypatch):
         Settings(_env_file=None)
 
 
-def test_settings_requires_api_token(monkeypatch):
+def test_settings_token_optional_when_absent(monkeypatch):
     monkeypatch.setenv("GRAMAX_BASE_URL", "https://docs.example.com")
     monkeypatch.delenv("GRAMAX_API_TOKEN", raising=False)
 
     from gramax_docportal_mcp.config import Settings
 
-    with pytest.raises(Exception):
-        Settings(_env_file=None)
+    settings = Settings(_env_file=None)
+    assert settings.gramax_api_token is None
+
+
+def test_settings_token_empty_string_normalizes_to_none(monkeypatch):
+    monkeypatch.setenv("GRAMAX_BASE_URL", "https://docs.example.com")
+    monkeypatch.setenv("GRAMAX_API_TOKEN", "")
+
+    from gramax_docportal_mcp.config import Settings
+
+    settings = Settings(_env_file=None)
+    assert settings.gramax_api_token is None
+
+
+def test_settings_token_whitespace_normalizes_to_none(monkeypatch):
+    monkeypatch.setenv("GRAMAX_BASE_URL", "https://docs.example.com")
+    monkeypatch.setenv("GRAMAX_API_TOKEN", "   ")
+
+    from gramax_docportal_mcp.config import Settings
+
+    settings = Settings(_env_file=None)
+    assert settings.gramax_api_token is None
+
+
+def test_settings_token_strips_whitespace(monkeypatch):
+    monkeypatch.setenv("GRAMAX_BASE_URL", "https://docs.example.com")
+    monkeypatch.setenv("GRAMAX_API_TOKEN", " abc123 ")
+
+    from gramax_docportal_mcp.config import Settings
+
+    settings = Settings(_env_file=None)
+    assert settings.gramax_api_token == "abc123"
 
 
 def test_settings_ai_defaults(monkeypatch):
