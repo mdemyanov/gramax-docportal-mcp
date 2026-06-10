@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -286,3 +287,176 @@ async def test_empty_string_token_no_header(httpx_mock: HTTPXMock, base_url):
 
     request = httpx_mock.get_request()
     assert "authorization" not in request.headers
+
+
+# get_navigation при ConnectError → GramaxNetworkError
+async def test_get_navigation_connect_error_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            await client.get_navigation("docs")
+
+    msg = str(exc_info.value)
+    assert "docs" in msg
+    assert "ConnectError" in msg
+
+
+# get_navigation при невалидном JSON → GramaxNetworkError
+async def test_get_navigation_invalid_json_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_response(status_code=200, text="<html>error</html>")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError):
+            await client.get_navigation("docs")
+
+
+# search при ConnectError → GramaxNetworkError
+async def test_search_connect_error_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            await client.search("query")
+
+    msg = str(exc_info.value)
+    assert "ConnectError" in msg
+
+
+# ai_search при ConnectError (до stream) → GramaxNetworkError
+async def test_ai_search_connect_error_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            async for _ in client.ai_search("query"):
+                pass
+
+    msg = str(exc_info.value)
+    assert "ConnectError" in msg
+
+
+# AC-11: GramaxServerError и GramaxNetworkError — подклассы GramaxError
+def test_gramax_server_error_is_subclass_of_gramax_error():
+    from gramax_docportal_mcp.client import GramaxError, GramaxServerError
+
+    assert issubclass(GramaxServerError, GramaxError)
+    err = GramaxServerError("test")
+    assert isinstance(err, GramaxError)
+
+
+def test_gramax_network_error_is_subclass_of_gramax_error():
+    from gramax_docportal_mcp.client import GramaxError, GramaxNetworkError
+
+    assert issubclass(GramaxNetworkError, GramaxError)
+    err = GramaxNetworkError("test")
+    assert isinstance(err, GramaxError)
+
+
+# AC-6: ai_search при HTTP 500 до начала стрима → GramaxServerError
+async def test_ai_search_500_raises_server_error(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(status_code=500, text="Internal Server Error")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxServerError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxServerError) as exc_info:
+            async for _ in client.ai_search("query"):
+                pass
+
+    msg = str(exc_info.value)
+    assert "500" in msg
+
+
+# AC-5: search при невалидном JSON в теле ответа → GramaxNetworkError
+async def test_search_invalid_json_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_response(status_code=200, text="<html>not json</html>")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            await client.search("query")
+
+    msg = str(exc_info.value)
+    assert "нечитаемый" in msg or "JSON" in msg.upper() or "Gramax" in msg
+
+
+# AC-4: get_article_html при TimeoutException → GramaxNetworkError с русским текстом
+async def test_get_article_html_timeout_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_exception(httpx.ReadTimeout("Request timed out"))
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            await client.get_article_html("docs", "intro")
+
+    msg = str(exc_info.value)
+    assert "ожидания" in msg
+    assert "intro" in msg or "docs" in msg
+
+
+# AC-3: list_catalogs при ConnectError → GramaxNetworkError с русским текстом
+async def test_list_catalogs_connect_error_raises_network_error(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxNetworkError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxNetworkError) as exc_info:
+            await client.list_catalogs()
+
+    msg = str(exc_info.value)
+    assert "подключиться" in msg or "Gramax" in msg
+    assert "ConnectError" in msg
+
+
+# AC-1: search при HTTP 500 → GramaxServerError с русским текстом содержащим "500"
+async def test_search_500_raises_server_error(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(status_code=500, text="Internal Server Error")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxServerError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxServerError) as exc_info:
+            await client.search("query", search_type="vector")
+
+    msg = str(exc_info.value)
+    assert "500" in msg
+    assert "поиск" in msg.lower() or "query" in msg
+
+
+# AC-2: search при HTTP 503 → GramaxServerError с русским текстом содержащим "503"
+async def test_search_503_raises_server_error(httpx_mock: HTTPXMock, base_url, api_token):
+    httpx_mock.add_response(status_code=503, text="Service Unavailable")
+
+    from gramax_docportal_mcp.client import GramaxClient, GramaxServerError
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        with pytest.raises(GramaxServerError) as exc_info:
+            await client.search("query")
+
+    assert "503" in str(exc_info.value)
