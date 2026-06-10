@@ -1,0 +1,51 @@
+[
+  {
+    "type": "article",
+    "isRecommended": false,
+    "catalog": {"name": "demo-catalog", "title": "Demo Catalog", "url": "/demo-catalog"},
+    "title": [{"type": "highlight", "text": "Настройка"}, {"type": "text", "text": " интеграции"}],
+    "url": "/demo-catalog/settings/setup",
+    "breadcrumbs": [
+      {"url": "/demo-catalog/settings", "title": [{"type": "highlight", "text": "Настройки"}]},
+      {"url": "/demo-catalog/settings/integrations", "title": [{"type": "text", "text": "Интеграции"}]},
+      {"url": "/demo-catalog/settings/integrations/setup",
+       "title": [{"type": "highlight", "text": "Настройка"}, {"type": "text", "text": " ВКС"}]}
+    ],
+    "properties": [{"id": "Category", "value": ["setup"]}, {"id": "Feature", "value": ["integration"]}],
+    "items": [
+      {"type": "paragraph", "order": 0,
+       "items": [{"type": "highlight", "text": "Настройка"}, {"type": "text", "text": " выполняется через раздел"}],
+       "score": 171.04},
+      {"type": "block", "order": 1, "title": [{"type": "text", "text": "Примечание"}],
+       "items": [{"type": "paragraph", "order": 0,
+                  "items": [{"type": "text", "text": "Текст внутри блока"}], "score": 88.36}],
+       "score": 230.4}
+    ]
+  },
+  {
+    "type": "article",
+    "isRecommended": true,
+    "catalog": {"name": "demo-catalog", "title": "Demo Catalog", "url": "/demo-catalog"},
+    "title": [{"type": "text", "text": "Обзор продукта"}],
+    "url": "/demo-catalog/overview",
+    "breadcrumbs": [],
+    "properties": [{"id": "Product", "value": ["alpha", "beta"]}, {"id": "Segment", "value": []}],
+    "items": []
+  },
+  {
+    "type": "article",
+    "isRecommended": false,
+    "catalog": {"name": "demo-catalog", "title": "Demo Catalog", "url": "/demo-catalog"},
+    "title": [{"type": "text", "text": "Устаревший формат"}],
+    "url": "/demo-catalog/legacy",
+    "breadcrumbs": [
+      {"url": "/demo-catalog/section", "title": "Раздел"}
+    ],
+    "properties": [],
+    "items": [
+      {"type": "paragraph", "order": 0,
+       "items": [{"type": "text", "text": "Текст устаревшей статьи"}],
+       "score": 50.0}
+    ]
+  }
+]

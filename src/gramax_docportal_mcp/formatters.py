@@ -91,6 +91,20 @@ def _render_highlights(items: list[dict]) -> str:
     return "".join(parts)
 
 
+def _render_breadcrumb_title(title: list[dict] | str) -> str:
+    """Render breadcrumb title as plain text without bold markers.
+
+    - list[dict]: concatenate item["text"] values (ignore type — no bold for breadcrumbs)
+    - str: return as-is (defensive, for backward-compatible string titles)
+    - anything else: return empty string
+    """
+    if isinstance(title, str):
+        return title
+    if isinstance(title, list):
+        return "".join(item.get("text", "") for item in title)
+    return ""
+
+
 def _render_snippet(items: list[dict]) -> str:
     """Extract first text snippet from search result items."""
     for item in items:
@@ -114,7 +128,9 @@ def format_search_results(results: list[dict], base_url: str) -> str:
 
         breadcrumbs = result.get("breadcrumbs", [])
         catalog = result.get("catalog", {})
-        path_parts = [catalog.get("title", "")] + [b.get("title", "") for b in breadcrumbs]
+        path_parts = [catalog.get("title", "")] + [
+            _render_breadcrumb_title(b.get("title", "")) for b in breadcrumbs
+        ]
         path = " > ".join(p for p in path_parts if p)
 
         recommended = "⭐ " if result.get("isRecommended") else ""
@@ -125,9 +141,13 @@ def format_search_results(results: list[dict], base_url: str) -> str:
 
         properties = result.get("properties", [])
         if properties:
-            props_str = " | ".join(
-                f"{p['name']}: {', '.join(p['value'])}" for p in properties
-            )
+            prop_parts: list[str] = []
+            for p in properties:
+                name = p.get("id") or p.get("name", "?")
+                v = p.get("value", [])
+                value_str = ", ".join(v) if isinstance(v, list) else str(v)
+                prop_parts.append(f"{name}: {value_str}")
+            props_str = " | ".join(prop_parts)
             lines.append(f"🏷️ {props_str}")
         lines.append("")
 
