@@ -197,6 +197,28 @@ async def test_ai_search_passes_all_params(httpx_mock: HTTPXMock, base_url, api_
     assert "currentArticle=commercial-knowlage" in url_str
 
 
+async def test_ai_search_omits_articles_language_when_none(
+    httpx_mock: HTTPXMock, base_url, api_token
+):
+    """articlesLanguage отсутствует в URL, а не уходит пустым значением."""
+    httpx_mock.add_response(text="")
+
+    from gramax_docportal_mcp.client import GramaxClient
+
+    async with GramaxClient(base_url=base_url, api_token=api_token) as client:
+        async for _ in client.ai_search(
+            "Что такое ITSM",
+            catalog_name="nsmp-doc",
+            articles_language=None,
+            response_language="ru",
+        ):
+            pass
+
+    url_str = str(httpx_mock.get_request().url)
+    assert "articlesLanguage" not in url_str
+    assert "responseLanguage=ru" in url_str
+
+
 async def test_ai_search_skips_invalid_json_lines(httpx_mock: HTTPXMock, base_url, api_token):
     ndjson = (
         '{"type":"text","text":"a"}\n'

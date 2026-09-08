@@ -73,7 +73,9 @@ def test_settings_ai_defaults(monkeypatch):
 
     s = Settings(_env_file=None)
     assert s.gramax_ai_timeout == 120.0
-    assert s.gramax_ai_articles_language == "ru"
+    # Дефолта нет намеренно: непустой articlesLanguage обнуляет выдачу
+    # knowledge.nau.im (замер 2026-09-08). Язык статей задаётся только явно.
+    assert s.gramax_ai_articles_language is None
     assert s.gramax_ai_response_language == "ru"
 
 

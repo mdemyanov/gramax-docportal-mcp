@@ -91,6 +91,8 @@ async def gramax_search(
         catalog_name: Имя каталога для поиска (без него — поиск по всем каталогам)
         search_type: Тип поиска — "vector" для семантического, без значения — полнотекстовый
         language: Язык статей: "ru", "en", "es", "zh", "fr", "de", "ja" и др.
+            ВНИМАНИЕ: на некоторых порталах непустое значение обнуляет выдачу
+            (уходит как articlesLanguage). По умолчанию не задавать.
         resource_filter: Фильтр ресурсов: "without" — только статьи,
             "only" — только файлы, "with" — всё (по умолчанию)
         property_filter: Фильтр по свойствам статей. Примеры:
@@ -159,7 +161,9 @@ async def gramax_ai_search(
         query: Вопрос на естественном языке.
         catalog_name: Имя каталога для контекста (без него — по всем).
         articles_language: Язык статей в индексе ("ru", "en", ...).
-            По умолчанию — из GRAMAX_AI_ARTICLES_LANGUAGE (ru).
+            По умолчанию не задаётся: на некоторых порталах непустое
+            значение обнуляет выдачу. Задать явно или через
+            GRAMAX_AI_ARTICLES_LANGUAGE, если портал этого требует.
         response_language: Язык генерируемого ответа. По умолчанию —
             из GRAMAX_AI_RESPONSE_LANGUAGE (ru).
         current_article: ID текущей статьи как контекст ("catalog_id/path").
