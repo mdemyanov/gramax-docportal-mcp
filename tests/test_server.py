@@ -279,8 +279,8 @@ class TestGramaxAiSearch:
 
         assert "Токен невалиден" in result
 
-    async def test_uses_default_languages_from_settings(self, mock_ctx_ai):
-        """Settings defaults applied when MCP args are None."""
+    async def test_response_language_default_from_settings(self, mock_ctx_ai):
+        """responseLanguage по-прежнему подставляется из настройки (безвреден)."""
         ctx, mock_client, holder = mock_ctx_ai
         holder["chunks"] = []
         captured: dict = {}
@@ -294,8 +294,46 @@ class TestGramaxAiSearch:
 
         await gramax_ai_search(ctx, "q")
 
-        assert captured["articles_language"] == "ru"
         assert captured["response_language"] == "ru"
+
+    async def test_articles_language_absent_without_explicit_value(self, mock_ctx_ai):
+        """Без явного языка articlesLanguage не уходит на портал вовсе.
+
+        На knowledge.nau.im непустой articlesLanguage обнуляет выдачу
+        (замер 2026-09-08: 0/6 ответов с CIT-маркерами против 6/6 без него).
+        None у клиента означает «параметра нет в запросе», не «пустая строка».
+        """
+        ctx, mock_client, holder = mock_ctx_ai
+        holder["chunks"] = []
+        captured: dict = {}
+
+        async def capturing(*args, **kwargs):
+            captured.update(kwargs)
+            return
+            yield  # generator marker
+
+        mock_client.ai_search = capturing
+
+        await gramax_ai_search(ctx, "q")
+
+        assert captured["articles_language"] is None
+
+    async def test_explicit_articles_language_is_forwarded(self, mock_ctx_ai):
+        """Обратная совместимость: явно заданный язык уходит в запрос."""
+        ctx, mock_client, holder = mock_ctx_ai
+        holder["chunks"] = []
+        captured: dict = {}
+
+        async def capturing(*args, **kwargs):
+            captured.update(kwargs)
+            return
+            yield  # generator marker
+
+        mock_client.ai_search = capturing
+
+        await gramax_ai_search(ctx, "q", articles_language="en")
+
+        assert captured["articles_language"] == "en"
 
     async def test_stream_disconnect_returns_partial_with_marker(self, mock_ctx_ai):
         """Spec: сетевой разрыв — отдаём накопленное + пометку в конце."""
