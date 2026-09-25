@@ -1,0 +1,47 @@
+# .nauta-scripts-basis.yaml — пишет /nauta:sync-scripts (tools-ai/nauta). Не
+# редактируйте руками значения; секцию `skip:` — можно (ADR-030-spec §5/§6).
+# Доставленные файлы — MIT, Copyright (c) 2026 mdemyanov (tools-ai/nauta).
+# Полный текст лицензии: LICENSE в корне репозитория плагина.
+nauta_version: "0.39.0"
+nauta_ref_sha: "unknown"
+synced_at: "2026-09-25T06:44:35Z"
+delivery_complete: true
+files_count: 26
+files:
+  scripts/_apply_profile.py: "sha256:9e23416b46cf41747c5cda7c80c28c9d96ba286ca9cfa23e5c17dec43ece4871"
+  scripts/_apply_yaml_patch.py: "sha256:21b6ee9e466c1fecdab33655ada222f92f027d663af5b585b577378244561a0d"
+  scripts/_conflict_markers.py: "sha256:0dc103b809c7236e67720e52be1cc94239431e88979c0311314c52591672c2f2"
+  scripts/_drift_check.py: "sha256:af64c61448f9d13ae2a7a333b6c6d9e1620c935c6341c54c131536c1e33ed6e4"
+  scripts/_init_helpers.py: "sha256:9bce78c39d04299413bd7e95f32589aa618435dadad5c0734815c98be4923283"
+  scripts/_resolve_agents.py: "sha256:ed6ac2a782c5cceff1fee0477f91c56134efbe29ea98e9750f959f80c65a60c3"
+  scripts/_validate_common.py: "sha256:b7f05693d158e39517380b19a822f41511f52bfbeeee04e6e5311e56cc4e926e"
+  scripts/apply-overlay.sh: "sha256:6b3ca942f6289ce6ce3dd147f797faf98999709ffe09dd981a42e4c848adb174"
+  scripts/check-branch-discipline.py: "sha256:5dbfc00988f2d8bc3a7fd85b14c19e8d4447f1249d0c5581f100e89abbc3695d"
+  scripts/check-content-actuality.py: "sha256:5d8af1900458e5c17766e04bbe727c064fccb24e534b9d83eb2703ede4dc1c4a"
+  scripts/check-ratchet.py: "sha256:e4a359a80efa57a85691d0c0c874a69477faf97f56ee3a600d15205ed90438b6"
+  scripts/check-hooks-path.sh: "sha256:ba9e0a5f1d9bfc03f34cec078fdcfb6f11106256aba70ac403f4d614dac50be1"
+  scripts/check-readiness.sh: "sha256:61fd194f3c41c00555288705437088b9fc8c1d3d8d435383c188376b6e51f756"
+  scripts/check-status-drift.py: "sha256:dab50dcfbba4733ed58f3eb837dbbdaba30e5906b77dae0a0640402611081596"
+  scripts/check.sh: "sha256:8d5ace54438704f357c8fea560d2a2a61a4e8f7b6701de05a76fb5d68947bbff"
+  scripts/id-check.sh: "sha256:16c69b061ef2ca17b2296799d32620a91eae23eccda180c5eab8c7d915edecea"
+  scripts/install-hooks.sh: "sha256:b0ff9b521bc09e1f7d0b2980158a20dc0d1b7739381927526a9c1ce31018f4c1"
+  scripts/measure-session-cost.py: "sha256:d04a8b68eb94a06df25bc004951e3a27fc2cfbec65b3aa08d0c7f692319c2f18"
+  scripts/role-postflight.sh: "sha256:d82cd7c782bd2068e8799f610efa9c834df77a51d678423fcc24d4962703809f"
+  scripts/role-preflight.sh: "sha256:474faaf11c03f5a0463a52499a18da616b0ed5463500ded382754c0888133b0e"
+  scripts/run-quiet.sh: "sha256:7bffb0fc47178554f44412f3b2952ffc71e3b5b5a70a244531c06eb506b2bbf8"
+  scripts/test-check-id.sh: "sha256:170d65743e15518c02a2892d6731611e84372b79ddca16446ffd0eeeef5806e9"
+  scripts/test-validate-content.sh: "sha256:88555559f71770a83e2ef50656a83f8905d94b5f3ccfa15828029e25ecde4014"
+  scripts/validate-content.py: "sha256:42936f3d3c6af7f1bf9da2a036502e0f394c431696e50a5a5a30c3ab5d8b3f09"
+  scripts/validate-profile.py: "sha256:0ba0d08229010f51453920026fa05fb6b425f9d0056e066132312f43e1c7e1a7"
+  .githooks/pre-commit: "sha256:3d8da0944e3c482d3d4ea717c46e3939bef471727d039301170333d06c17e34f"
+skip_count: 0
+skip:
+conflicts_count: 0
+conflicts:
+upgrades_count: 1
+upgrades:
+  - from: "0.33.1"
+    to: "0.39.0"
+    redBefore: 0
+    redAfter: 1
+    seconds: 13

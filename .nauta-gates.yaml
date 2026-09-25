@@ -1,0 +1,153 @@
+# Конфигурация гейтов объёма (ADR-031 Д1 — носитель в корне проекта; ADR-032 — пороги).
+# Читатель — scripts/validate-content.py: _load_gates, check_prompt_layer_size_budget
+# (C14), gate_config_provenance_lines.
+#
+# Провижининг — bin/init.sh (DEV-013, NA-EPIC-01 Фаза 0 N4): создаётся один раз, там, где
+# файла ещё нет. Повторный `/nauta:init` НЕ трогает существующий файл — тот же протокол
+# «не разрушать чужое», что у корневого промт-слоя (CLAUDE.md/AGENTS.md, ADR-039). Ручная
+# правка порогов ниже переживает любой следующий прогон init.
+
+# C14 — корневой промт-слой: СУММА строк CLAUDE.md + AGENTS.md. Один количественный
+# признак без пары: контекстное окно тратится на длину независимо от структуры
+# (ADR-032 FR-008, code-and-prompt-size-budgets). Отсутствующий файл пары даёт 0, не
+# ошибку (FR-007). Порог 550 — канон capability `code-and-prompt-size-budgets`,
+# Requirement "Combined threshold for the root prompt layer".
+promptLayerSizeBudget:
+  thresholdLines: 550
+  severity: block
+
+# Дисциплина ветвления (capability role-branch-discipline). Читатель —
+# scripts/check-branch-discipline.py. Без этого ключа сторож печатает «профиль репозитория
+# не объявлен» и дерево не судит: молчание разрешением ни одного профиля не является.
+#
+# `single` — ЗАМЕР, не умолчание: `git log --format='%an <%ae>'` даёт один физический
+# профиль на два написания имени (Maksim Demyanov <mdemyanov@users.noreply.github.com>,
+# 40 коммитов; Max Demyanov <qutask@gmail.com>, 5). Параллельных рабочих копий разных
+# людей, ради которых заводится `team`, в истории нет.
+#
+# `epic-` — префикс интеграционных веток: работа эпика собирается в `epic-<slug>` и
+# вливается в `main` одним PR (прецедент — epic-nauta-canon-migration).
+branchDiscipline:
+  profile: single
+  integrationBranchPrefix: "epic-"
+
+# C11 — content/: парная метрика объём+структура на статью (ADR-018, capability
+# `content-size-budgets`). Сигнал — только когда ОБА признака сработали (BR-004): T
+# превышен И качественный признак провален (companion-спека отсутствует для ADR /
+# longest_run_without_structure >= qualityThreshold для остальных). Ключа по умолчанию
+# НЕТ: без него C11 — законный, но постоянный тихий skip (провенанс печатает "absent
+# (проверка не выполняется)", не "0 нарушений"). Раскомментируй и заполни свой каталог
+# типов, если хочешь, чтобы гейт реально проверял — тип без записи остаётся легитимным
+# статусом "T не измерен" (FR-003), не пробелом.
+#
+# Пороги ниже — ОРИЕНТИР этого репозитория (nauta), не норма: взяты из
+# content/40-architecture/ADR-018-content-size-budget-detector-spec.md §2.1/§2.4 (тот же
+# каталог типов, что несёт templates/content-scaffold/.doc-root.yaml — Требование,
+# Архитектура, ADR, Исследование; Runbook/Глоссарий/Прочее там же помечены "T не
+# измерен" и не имеют строки). Своё дерево — своя калибровка (percentile-процедура,
+# capability `content-size-budgets`, Requirement "Reproducibility of threshold
+# derivation").
+# sizeBudgets:
+#   - type: Требование
+#     thresholdLines: 300
+#     quality: longest_run_without_structure
+#     qualityThreshold: 100
+#     severity: warn
+#   - type: Архитектура
+#     thresholdLines: 750
+#     quality: longest_run_without_structure
+#     qualityThreshold: 150
+#     severity: warn
+#   - type: ADR
+#     thresholdLines: 150
+#     quality: companion-spec
+#     # Имя companion-спеки. Без ключа -- то же умолчание '{stem}-spec.md'; `{stem}` --
+#     # имя файла статьи-предмета, поиск рекурсивен по всему content/. Своя конвенция
+#     # имён (спутник назван по предмету решения) объявляется здесь; шаблон, не
+#     # содержащий `{stem}`, отвергается: все статьи типа делили бы один спутник.
+#     companionPattern: '{stem}-spec.md'
+#     severity: block
+#   - type: Исследование
+#     thresholdLines: 500
+#     quality: longest_run_without_structure
+#     qualityThreshold: 200
+#     severity: warn
+# sizeBudgetGrandfathered: []
+
+# C13 — код (.py/.groovy): пара "строки файла + длиннейшая top-level декларация", тот же
+# контракт BR-004, что C11 несёт для content/ (ADR-032, capability
+# `code-and-prompt-size-budgets`). Ключа по умолчанию НЕТ: без него C13 — законный, но
+# постоянный тихий skip. Раскомментируй, если хочешь, чтобы гейт реально проверял свой
+# код.
+#
+# Пороги ниже — ОРИЕНТИР этого репозитория (nauta), не норма: это ТЕ ЖЕ числа, что несёт
+# активный codeSizeBudgets корневого .nauta-gates.yaml этого дерева (600/650 строк,
+# качественный порог 600), и они дословно совпадают с capability
+# `code-and-prompt-size-budgets`, Requirement про порог для .py/.groovy и отдельный
+# порог 650 для test-файлов. Другой репозиторий — другая калибровка.
+# codeSizeBudgets:
+#   - extension: .py
+#     kind: prod
+#     thresholdLines: 600
+#     quality: longest_top_level_declaration
+#     qualityThreshold: 600
+#     severity: block
+#   - extension: .py
+#     kind: test
+#     thresholdLines: 650
+#     quality: longest_top_level_declaration
+#     qualityThreshold: 600
+#     severity: block
+#   - extension: .groovy
+#     kind: prod
+#     thresholdLines: 600
+#     quality: longest_top_level_declaration
+#     qualityThreshold: 600
+#     severity: block
+#   - extension: .groovy
+#     kind: test
+#     thresholdLines: 650
+#     quality: longest_top_level_declaration
+#     qualityThreshold: 600
+#     severity: block
+
+# Отказ от документарного контура (ADR-041 Д3). По умолчанию ключа НЕТ: умолчание — контур
+# есть, и его отсутствие на диске даёт ERROR с ненулевым кодом, а не тишину. Раскомментируй,
+# если проект сознательно живёт без content/: тогда C1-C12, C15, C16 не выполняются, а
+# C13/C14 (предмет — репозиторий, не каталог) продолжают работать. Значение, отличное от
+# `absent`, — error: неизвестное объявление не читается как «нарушений нет» (ADR-031 Д3).
+# documentaryCircuit: absent
+#
+# Чем этот ключ отличается от секции `skip:` в .nauta-scripts-basis.yaml. Это разные
+# предметы, а не два способа выключить одно и то же.
+#   documentaryCircuit: absent — про ПРЕДМЕТ проверки: каталога content/ у проекта нет и не
+#     планируется, проверять нечего. Гейт остаётся на месте, печатает одну строку об
+#     объявленном отказе и не меняет exit-код.
+#   skip: <путь> — про ДОСТАВКУ файла: «не перезаписывай мою копию этого скрипта при
+#     /nauta:sync-scripts». Проверку он НЕ выключает: путь в skip: заявляет позицию наравне
+#     с files:, и если файла в дереве нет, scripts/check.sh падает с ERROR
+#     (ADR-030-spec §5, ADR-037 Д1/§3).
+# Способа выключить гейт молча нет ни у того, ни у другого: законна только объявленная
+# тишина и только там, где объявлен отказ от самого предмета проверки (ADR-007 Д1).
+
+# hiredRoleTrust (ADR-091 Д2, ADR-092 §2/Д3/Д5, правка SA-109) — граница доверия нанятых ролей
+# (`/nauta:hire`), объявленная человеком для автоприменения в процессном пайплайне. Читатель —
+# `scripts/hire.py::trust_boundary_status`. Замер ADR-092 §1: ключа нет ни здесь, ни в
+# `.nauta-gates.yaml` этого дерева — потомок без единого найма не нуждается в записи, образец
+# ниже документирует форму, стиль — прецедент `documentaryCircuit` выше в этом файле.
+# Объявление — per-(role, stage): роль, объявленная для одной стадии, не доверена ни на какой
+# другой. ВСЕ ТРИ поля обязательны; запись без `stage`, `tools_source` или `content_sha256` есть
+# «не объявлено», а не частичное доверие (ADR-092 Д5). Отсутствие ключа целиком — тоже «не
+# объявлено», не ошибка (свойство уже верно структурно, миграции при обновлении плагина нет).
+# `content_sha256` (правка SA-109, Д3) — эталон содержимого роли, объявленный ЧЕЛОВЕКОМ (не
+# сайдкаром) — согласованная подмена файла роли И сайдкара одним PR не проходит гейт, пока само
+# объявление не тронуто.
+# hiredRoleTrust:
+#   backend-architect:
+#     stage: design
+#     tools_source: inherited
+#     content_sha256: 66598cd9077472e0d9a3406ea46635d12766defac27f84090f93c1903bcd3da2
+#   search-specialist:
+#     stage: research
+#     tools_source: declared
+#     content_sha256: 0e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7

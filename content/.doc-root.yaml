@@ -1,0 +1,89 @@
+# Конфигурация документарного контура (Gramax). Заводится `/nauta:init` один раз
+# (ADR-041 Д1); повторный прогон существующий файл не трогает.
+#
+# `code`, `title`, `description` — нейтральные значения: поправь руками под свой проект.
+# Перечни `properties` ниже читает `scripts/validate-content.py` (C4/C5): значение, которого
+# здесь нет, даёт error в статье. Роли плагина пишут `Тип контента`, `Фаза`, `Статус`,
+# `Audience` — все четыре объявлены.
+#
+# profile: — маркер, по которому scripts/_drift_check.py резолвит манифест профиля
+# (ADR-047 Д2/Д4); отсутствие --profile у bin/init.sh даёт этот же скаффолд, поэтому
+# значение здесь — 'project' (Д2: --profile project и прогон без флага побайтово равны).
+profile: project
+code: project
+title: Документарный контур проекта
+description: Решения, требования, архитектура и уроки проекта
+style: blue-green
+language: ru
+supportedLanguages:
+  - ru
+syntax: XML
+
+properties:
+  - name: Тип контента
+    type: Enum
+    style: blue
+    icon: file-text
+    values:
+      - Требование
+      - Архитектура
+      - ADR
+      - Runbook
+      - Исследование
+      - Глоссарий
+      - Прочее
+
+  - name: Фаза
+    type: Enum
+    style: green
+    icon: layers
+    values:
+      - PoC
+      - MVP
+      - Pilot
+      - Production
+
+  - name: Статус
+    type: Enum
+    style: orange
+    icon: check-circle
+    values:
+      - Draft
+      - Review
+      - Approved
+      - Superseded
+
+  - name: Audience
+    type: Enum
+    style: purple
+    icon: users
+    values:
+      - Public
+      - Internal
+      - Partner
+      - Candidate
+
+  - name: MCP Tool
+    type: Enum
+    style: cyan
+    icon: tool
+    values:
+      - gramax_list_catalogs
+      - gramax_get_navigation
+      - gramax_get_article
+      - gramax_search
+      - gramax_ai_search
+      - N/A
+
+  - name: Module
+    type: Enum
+    style: indigo
+    icon: package
+    values:
+      - server.py
+      - client.py
+      - formatters.py
+      - config.py
+      - N/A
+
+filterProperties: [Тип контента, Фаза, Статус, MCP Tool, Module]
